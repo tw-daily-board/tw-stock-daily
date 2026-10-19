@@ -22,12 +22,16 @@ function n(v) { return v == null ? "-" : signed(v.toLocaleString(), v); }
 const cls = v => (v > 0 ? "up" : v < 0 ? "down" : "");
 
 // 外資買賣超分頁：買超、賣超兩張表，各自一組「外資及陸資」當日 / 前日 / 10日合計
-const FI_SECTIONS = [["fi_buy", "外資買超前20大"], ["fi_sell", "外資賣超前20大"]];
+const FI_SECTIONS = {
+  fi: [["fi_buy", "外資買超前20大（個股）", "fi_total"], ["fi_sell", "外資賣超前20大（個股）", "fi_total"]],
+  fi_etf: [["fi_etf_buy", "外資買超前20大（ETF）", "fi_etf_total"], ["fi_etf_sell", "外資賣超前20大（ETF）", "fi_etf_total"]],
+};
+const isFi = t => t in FI_SECTIONS;
 
 let data = null, tab = "cap", view = "split", sort = null;
 
 function cols() {
-  if (tab === "fi") {
+  if (isFi(tab)) {
     const c = BASE.slice();
     c.push({ k: "fi_amt", t: "當日金額(億)", f: v => n(v.toFixed(2)), c: true, g: "外資及陸資", first: true });
     for (const [s, t] of INST_SUB) c.push({ k: `fi_${s}`, t, f: n, c: true, g: "外資及陸資" });
@@ -49,7 +53,7 @@ function tableHtml(key, rows, cs, total) {
     rows = rows.slice().sort((a, b) => (typeof a[k] === "string" ? a[k].localeCompare(b[k]) : (a[k] ?? -Infinity) - (b[k] ?? -Infinity)) * dir);
   }
   const plain = cs.filter(c => !c.g).length;
-  const grps = tab === "fi" ? [["fi", "外資及陸資"]] : (view === "split" ? INST_SPLIT : INST_ALL);
+  const grps = isFi(tab) ? [["fi", "外資及陸資"]] : (view === "split" ? INST_SPLIT : INST_ALL);
   const groupRow = "<tr>" + `<th class="plain" colspan="${plain}"></th>` +
     grps.map(([p, g]) => `<th class="grp" colspan="${cs.filter(c => c.g === g).length}">${g}（張）</th>`).join("") + "</tr>";
   const th = c => `<th data-k="${c.k}" data-sec="${key}" class="${c.first ? "gl " : ""}${sort?.sec === key && sort.k === c.k ? (sort.dir > 0 ? "asc" : "desc") : ""}">${c.t}</th>`;
@@ -77,11 +81,11 @@ function sumOf(rows) {
 function render() {
   const box = document.querySelector(".scroll");
   const cs = cols();
-  document.getElementById("view").hidden = tab === "fi";
-  if (tab === "fi") {
-    box.innerHTML = FI_SECTIONS.map(([key, title]) =>
+  document.getElementById("view").hidden = isFi(tab);
+  if (isFi(tab)) {
+    box.innerHTML = FI_SECTIONS[tab].map(([key, title, tot]) =>
       `<h2 class="sec">${title}</h2><div class="sc">` +
-      tableHtml(key, data[key], cs, [["前20大合計", sumOf(data[key])], ["全市場個股合計", data.fi_total]]) + "</div>").join("");
+      tableHtml(key, data[key], cs, [["前20大合計", sumOf(data[key])], [tab === "fi" ? "全市場個股合計" : "全市場ETF合計", data[tot]]]) + "</div>").join("");
   } else {
     box.innerHTML = tableHtml(tab, data[tab], cs);
   }

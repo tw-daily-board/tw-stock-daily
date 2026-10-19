@@ -317,18 +317,23 @@ def build():
         cs = sorted((c for c in quotes if pred(c)), key=lambda c: quotes[c]["volume"], reverse=True)[:n]
         return [{**enrich(quotes[c]), "rank": i} for i, c in enumerate(cs, 1)]
 
-    # 外資及陸資（含外資自營商）當日買超 / 賣超前 N 大個股（已排除 ETF），以股數排序；金額＝張數×1000×收盤價
-    fi_net = {c: days[0][1][c][0] for c in quotes if is_common_stock(c) and c in days[0][1]}
+    # 外資及陸資（含外資自營商）當日買超 / 賣超前 N 大，個股與 ETF 各自獨立排名；
+    # 以股數排序；金額＝張數×1000×收盤價
+    def fi_board(pred):
+        net = {c: days[0][1][c][0] for c in quotes if pred(c) and c in days[0][1]}
+        order = sorted(net, key=lambda c: (-net[c], c))
 
-    def fi_rows(codes):
-        return [{**enrich(quotes[c]), "rank": i, "fi_amt": round(fi_net[c] * quotes[c]["close"] / 1e8, 2)}
-                for i, c in enumerate(codes, 1)]
+        def rows(codes):
+            return [{**enrich(quotes[c]), "rank": i, "fi_amt": round(net[c] * quotes[c]["close"] / 1e8, 2)}
+                    for i, c in enumerate(codes, 1)]
 
-    by_net = sorted(fi_net, key=lambda c: (-fi_net[c], c))
-    fi_buy = fi_rows([c for c in by_net if fi_net[c] > 0][:TOP_FI])
-    fi_sell = fi_rows([c for c in reversed(by_net) if fi_net[c] < 0][:TOP_FI])
-    fi_total = {k: sum(inst_for(c, days)[k] for c in fi_net) for k in ("fi_today", "fi_prev", "fi_10d")}
-    fi_total["fi_amt"] = round(sum(v * quotes[c]["close"] for c, v in fi_net.items()) / 1e8, 2)
+        total = {k: sum(inst_for(c, days)[k] for c in net) for k in ("fi_today", "fi_prev", "fi_10d")}
+        total["fi_amt"] = round(sum(v * quotes[c]["close"] for c, v in net.items()) / 1e8, 2)
+        return (rows([c for c in order if net[c] > 0][:TOP_FI]),
+                rows([c for c in reversed(order) if net[c] < 0][:TOP_FI]), total)
+
+    fi_buy, fi_sell, fi_total = fi_board(is_common_stock)
+    fi_etf_buy, fi_etf_sell, fi_etf_total = fi_board(is_etf)
 
     return {
         "date": trade_date.isoformat(),
@@ -341,6 +346,9 @@ def build():
         "fi_buy": fi_buy,
         "fi_sell": fi_sell,
         "fi_total": fi_total,
+        "fi_etf_buy": fi_etf_buy,
+        "fi_etf_sell": fi_etf_sell,
+        "fi_etf_total": fi_etf_total,
     }
 
 
@@ -348,7 +356,7 @@ def main():
     out = build()
     DATA.mkdir(exist_ok=True)
     (DATA / "latest.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
-    print(f"OK {out['date']}: fi_buy={len(out['fi_buy'])} fi_sell={len(out['fi_sell'])} cap={len(out['cap'])} stocks={len(out['stocks'])} etfs={len(out['etfs'])}")
+    print(f"OK {out['date']}: fi_buy={len(out['fi_buy'])} fi_sell={len(out['fi_sell'])} fi_etf_buy={len(out['fi_etf_buy'])} fi_etf_sell={len(out['fi_etf_sell'])} cap={len(out['cap'])} stocks={len(out['stocks'])} etfs={len(out['etfs'])}")
 
 
 if __name__ == "__main__":
