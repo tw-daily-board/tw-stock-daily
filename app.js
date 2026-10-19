@@ -68,7 +68,10 @@ function tableHtml(key, rows, cs, total) {
     const lead = `<td colspan="${plain}" class="name">${label}</td>`;
     return "<tr class=\"tot\">" + lead + cs.filter(c => c.g).map(c => cell(c, r)).join("") + "</tr>";
   }).join("");
-  return `<table><thead>${groupRow}<tr>${cs.map(th).join("")}</tr></thead><tbody>${body}</tbody>${foot ? `<tfoot>${foot}</tfoot>` : ""}</table>`;
+  // 外資分頁有上下兩張表，固定欄寬讓兩表對齊
+  const widths = [40, 80, 170, 64];
+  const colgroup = isFi(tab) ? "<colgroup>" + cs.map((c, i) => `<col style="width:${widths[i] ?? 110}px">`).join("") + "</colgroup>" : "";
+  return `<table class="${isFi(tab) ? "fx" : ""}">${colgroup}<thead>${groupRow}<tr>${cs.map(th).join("")}</tr></thead><tbody>${body}</tbody>${foot ? `<tfoot>${foot}</tfoot>` : ""}</table>`;
 }
 
 function sumOf(rows) {

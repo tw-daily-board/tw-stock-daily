@@ -43,5 +43,7 @@ td.name{font-weight:600}
 .sc{overflow-x:auto}
 .sec~.sec{border-top:1px solid var(--line);margin-top:8px}
 tfoot td{font-weight:600;border-top:1px solid var(--line);border-bottom:0;background:color-mix(in srgb,var(--accent) 4%,transparent)}
+tfoot td:nth-child(n+2){text-align:right}
 tfoot td.name{text-align:left}
+table.fx{table-layout:fixed;min-width:1180px}
 [hidden]{display:none!important}
