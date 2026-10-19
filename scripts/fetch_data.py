@@ -13,6 +13,7 @@ import csv
 import gzip
 import io
 import json
+import os
 import re
 import sys
 import time
@@ -41,6 +42,10 @@ UA = {
     "Accept-Encoding": "gzip",
     "Referer": "https://www.twse.com.tw/zh/",
 }
+
+
+class NotReady(RuntimeError):
+    """資料尚未公布（不是程式或網路錯誤）：提早的排程遇到時略過，不讓整個執行失敗。"""
 
 
 def get_text(url, retries=4):
@@ -163,7 +168,7 @@ def tpex_table(url):
 def fetch_tpex_quotes(d):
     t = tpex_table(f"https://www.tpex.org.tw/www/zh-tw/afterTrading/otc?date={d:%Y/%m/%d}&type=EW&response=json")
     if t is None:
-        raise RuntimeError(f"上櫃 {d} 行情無資料")
+        raise NotReady(f"上櫃 {d} 行情無資料")
     f = [x.strip() for x in t["fields"]]
 
     def col(*keys):
@@ -246,7 +251,7 @@ def fetch_inst(d):
     time.sleep(REQUEST_GAP)
     tp = fetch_tpex_inst(d)
     if tp is None:
-        raise RuntimeError(f"上櫃 {d} 法人資料無資料，但上市有（可能尚未公布）")
+        raise NotReady(f"上櫃 {d} 法人資料無資料，但上市有（可能尚未公布）")
     return {**tp, **tw}
 
 
@@ -268,7 +273,7 @@ def load_inst_history(trade_date):
                 p.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
                 days.append((d, data))
             elif d == trade_date:
-                raise RuntimeError(f"{d} 的三大法人資料尚未公布")
+                raise NotReady(f"{d} 的三大法人資料尚未公布")
         d -= timedelta(days=1)
     keep = {f"{x:%Y%m%d}.json" for x, _ in days}
     for p in INST_DIR.glob("*.json"):
@@ -298,7 +303,7 @@ def build():
             q["issued"] = shares.get(c)
     days = load_inst_history(trade_date)
     if days[0][0] != trade_date:
-        raise RuntimeError("法人資料日期與行情日期不一致")
+        raise NotReady("法人資料日期與行情日期不一致")
 
     def enrich(q):
         q = {k: v for k, v in q.items() if k != "issued"}
@@ -353,29 +358,34 @@ def build():
     }
 
 
-def attach_fut(out):
-    """台指期盤後快訊。期交所資料常比證交所晚公布，失敗時不擋住主資料，沿用舊的 fut（網頁會顯示它自己的日期）。"""
+def warn(title, e):
+    print(f"WARN {title}：{type(e).__name__}: {e}", file=sys.stderr)
+    print(f"::warning title={title}::" + str(e)[:500].replace("\n", " "))
+
+
+def attach_fut(out, old):
+    """台指期盤後快訊（期交所約 15:20 公布，比股票法人資料早）。以台灣今天的日期查，沒有資料或失敗時沿用舊的 fut，
+    網頁會顯示它自己的日期，不會擋住股票資料。"""
     import fetch_fut
-    old = None
-    try:
-        old = json.loads((DATA / "latest.json").read_text()).get("fut")
-    except (OSError, ValueError):
-        pass
+    today = datetime.now(timezone(timedelta(hours=8))).date()
     try:
         time.sleep(REQUEST_GAP)
-        out["fut"] = fetch_fut.build(get_json, date.fromisoformat(out["date"]), REQUEST_GAP)
+        out["fut"] = fetch_fut.build(get_json, today, REQUEST_GAP)
     except Exception as e:  # noqa: BLE001
-        print(f"WARN 台指期資料略過（保留舊資料 {old and old['date']}）：{type(e).__name__}: {e}", file=sys.stderr)
-        print("::warning title=台指期資料未更新::" + str(e)[:500].replace("\n", " "))
+        warn(f"台指期資料未更新（保留 {old and old['date']}）", e)
         out["fut"] = old
 
 
 def save_history(out):
-    """每個交易日存一份完整輸出到 data/history/YYYYMMDD.json（同一天重跑會覆蓋，所以晚間補到的期貨資料也會進去），並刪除超過保留天數的舊檔。"""
+    """每個交易日存一份完整輸出到 data/history/YYYYMMDD.json（同一天重跑會覆蓋，所以晚間補到的資料也會進去），並刪除超過保留天數的舊檔。
+    期貨資料日期與該日不同時不放進去，避免把別天的資料存錯日期。"""
     hist = DATA / "history"
     hist.mkdir(exist_ok=True)
     d = date.fromisoformat(out["date"])
-    (hist / f"{d:%Y%m%d}.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
+    rec = dict(out)
+    if not rec.get("fut") or rec["fut"]["date"] != out["date"]:
+        rec["fut"] = None
+    (hist / f"{d:%Y%m%d}.json").write_text(json.dumps(rec, ensure_ascii=False, separators=(",", ":")))
     cutoff = f"{d - timedelta(days=HISTORY_DAYS):%Y%m%d}"
     for p in hist.glob("*.json"):
         if p.stem < cutoff:
@@ -383,12 +393,34 @@ def save_history(out):
 
 
 def main():
-    out = build()
-    attach_fut(out)
     DATA.mkdir(exist_ok=True)
+    try:
+        old = json.loads((DATA / "latest.json").read_text())
+    except (OSError, ValueError):
+        old = None
+    fresh = True
+    # 股票排程（18:00）設 STOCK_WAIT_MINUTES：資料還沒出時每 10 分鐘重試，最多等這麼久
+    deadline = time.time() + 60 * int(os.environ.get("STOCK_WAIT_MINUTES", "0"))
+    while True:
+        try:
+            out = build()
+            break
+        except NotReady as e:
+            if time.time() + 600 < deadline:
+                print(f"股票資料尚未公布，10 分鐘後重試：{e}", file=sys.stderr)
+                time.sleep(600)
+                continue
+            # 期貨排程（15:40）時股票法人資料通常還沒出：沿用舊的股票資料，只更新期貨
+            if old is None:
+                raise
+            warn("股票資料尚未公布，沿用舊資料", e)
+            out, fresh = old, False
+            break
+    attach_fut(out, (old or {}).get("fut"))
     (DATA / "latest.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
-    save_history(out)
-    print(f"OK {out['date']} fut={out['fut'] and out['fut']['date']}: fi_buy={len(out['fi_buy'])} fi_sell={len(out['fi_sell'])} fi_etf_buy={len(out['fi_etf_buy'])} fi_etf_sell={len(out['fi_etf_sell'])} cap={len(out['cap'])} stocks={len(out['stocks'])} etfs={len(out['etfs'])}")
+    if fresh:
+        save_history(out)
+    print(f"OK {out['date']}{'' if fresh else '（沿用舊股票資料）'} fut={out['fut'] and out['fut']['date']}")
 
 
 if __name__ == "__main__":

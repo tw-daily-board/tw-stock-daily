@@ -2,8 +2,11 @@ name: daily-update
 
 on:
   schedule:
-    # 台灣時間 週一~五 17:30 與 19:30（UTC 09:30 / 11:30）。後者為法人資料延遲公布時的重試。
-    - cron: "30 9,11 * * 1-5"
+    # 台灣時間 週一~五兩次（UTC 07:40 / 10:00）：
+    # 15:40 期貨資料（期交所約 15:20 公布）；股票三大法人資料較晚，若還沒出就沿用舊的股票資料。
+    # 18:00 股票完整盤後資料；若還沒公布會在程式內每 10 分鐘重試，最多等 60 分鐘。
+    - cron: "40 7 * * 1-5"
+    - cron: "0 10 * * 1-5"
   workflow_dispatch:
 
 permissions:
@@ -24,6 +27,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: 抓取盤後資料
+        env:
+          STOCK_WAIT_MINUTES: ${{ github.event.schedule == '0 10 * * 1-5' && '60' || '0' }}
         run: python scripts/fetch_data.py
       - name: 提交資料
         run: |
