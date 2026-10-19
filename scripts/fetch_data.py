@@ -290,5 +290,8 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:  # noqa: BLE001
-        print(f"ERROR: {e}", file=sys.stderr)
+        msg = f"{type(e).__name__}: {e}"
+        print(f"ERROR: {msg}", file=sys.stderr)
+        # GitHub Actions 註解：讓錯誤原因直接顯示在執行頁面的 Annotations
+        print("::error title=fetch_data 失敗::" + msg[:1500].replace("%", "%25").replace("\r", "").replace("\n", "%0A"))
         sys.exit(1)
