@@ -28,6 +28,17 @@ const FI_SECTIONS = {
 };
 const isFi = t => t in FI_SECTIONS;
 
+// 代號／名稱點下去開個股頁（新分頁）；網站可在右上角切換，記在瀏覽器裡
+const SITES = {
+  yahoo: ["Yahoo 股市", c => `https://tw.stock.yahoo.com/quote/${c}`],
+  cnyes: ["鉅亨網", c => `https://www.cnyes.com/twstock/${c}`],
+  goodinfo: ["Goodinfo", c => `https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID=${c}`],
+  wantgoo: ["玩股網", c => `https://www.wantgoo.com/stock/${c}`],
+};
+let site = "yahoo";
+try { const v = localStorage.getItem("site"); if (v in SITES) site = v; } catch (e) { /* 無痕模式等情況下略過 */ }
+const stockLink = (code, txt) => `<a class="sl" href="${SITES[site][1](encodeURIComponent(code))}" target="_blank" rel="noopener noreferrer">${txt}</a>`;
+
 let data = null, tab = "cap", view = "split", sort = null;
 
 function cols() {
@@ -59,7 +70,8 @@ function tableHtml(key, rows, cs, total) {
   const th = c => `<th data-k="${c.k}" data-sec="${key}" class="${c.first ? "gl " : ""}${sort?.sec === key && sort.k === c.k ? (sort.dir > 0 ? "asc" : "desc") : ""}">${c.t}</th>`;
   const cell = (c, r) => {
     const v = r[c.k];
-    const txt = c.f ? (v == null ? "-" : c.f(v)) : v;
+    let txt = c.f ? (v == null ? "-" : c.f(v)) : v;
+    if (c.k === "code" || c.k === "name") txt = stockLink(r.code, txt);
     const klass = [c.c ? cls(v) : "", c.k === "name" ? "name" : "", c.first ? "gl" : ""].join(" ");
     return `<td class="${klass}">${txt}</td>`;
   };
@@ -127,6 +139,14 @@ function render() {
     render();
   });
 }
+
+const siteSel = document.getElementById("site");
+siteSel.innerHTML = Object.entries(SITES).map(([k, [t]]) => `<option value="${k}"${k === site ? " selected" : ""}>${t}</option>`).join("");
+siteSel.onchange = () => {
+  site = siteSel.value;
+  try { localStorage.setItem("site", site); } catch (e) { /* 略過 */ }
+  if (data) render();
+};
 
 document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => {
   document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
