@@ -1,25 +1,36 @@
 """台指期盤後快訊：收盤行情表、三大法人籌碼變化、十大交易人期權淨部位。
 
-資料全部來自期交所開放資料（openapi.taifex.com.tw）與證交所：
-  - 每日行情     DailyMarketReportFut
-  - 三大法人     MarketDataOfMajorInstitutionalTradersDetailsOf{FuturesContracts,CallsAndPuts}BytheDate
-  - 大額交易人   OpenInterestOfLargeTraders{Futures,Options}
+資料全部來自期交所網站的 CSV 下載（可指定日期，所以前一交易日也能直接查，不需自己存歷史）與證交所：
+  - 每日行情     cht/3/futDataDown
+  - 三大法人     cht/3/futContractsDateDown、cht/3/callsAndPutsDateDown
+  - 大額交易人   cht/3/largeTraderFutDown、cht/3/largeTraderOptDown
   - 現貨買賣超   證交所 BFI82U；加權指數與成交金額 證交所 FMTQIK
-期交所 API 只保留最新一個交易日，「變化」欄靠 data/fut/ 內前一個交易日的快照相減。
+不用 openapi.taifex.com.tw：它比網站晚更新（當天晚上仍是前一交易日）。
 """
+import csv
+import io
 import json
+import sys
 import time
-from datetime import date
+import urllib.request
+from datetime import date, timedelta
 from pathlib import Path
 
-TAIFEX = "https://openapi.taifex.com.tw/v1/"
+TAIFEX = "https://www.taifex.com.tw/cht/3/"
 FUT_DIR = Path(__file__).resolve().parent.parent / "data" / "fut"
 KEEP_SNAPSHOTS = 5
+UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"}
 
 # 收盤行情表：(顯示名稱, 契約代號, 取幾個月份)；近月＋次月，分類指數期只取近月
 QUOTE_ROWS = [("台指", "TX", 2), ("小台", "MTX", 2), ("微台", "TMF", 2),
               ("電子", "TE", 1), ("金融", "TF", 1), ("非金", "XIF", 1)]
 INST_NAMES = {"自營商": "dl", "投信": "it", "外資及陸資": "fi"}
+ALL_MONTHS = ("999912", "999999")   # 大額交易人「所有契約」
+SKIP_MONTHS = ("666666",) + ALL_MONTHS  # 666666＝週契約合計
+
+
+class NotPublished(RuntimeError):
+    pass
 
 
 def fnum(s):
@@ -29,94 +40,108 @@ def fnum(s):
         return None
 
 
-def d8(s):
-    return f"{s[:4]}-{s[4:6]}-{s[6:8]}"
+def get_csv(path, params, gap=1.0, retries=4):
+    """下載期交所 CSV（Big5）；沒有資料列（假日、尚未公布）回傳空 list。"""
+    url = TAIFEX + path + "?" + params
+    last = None
+    for i in range(retries):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=40) as r:
+                text = r.read().decode("cp950", "replace")
+            time.sleep(gap)
+            return list(csv.DictReader(io.StringIO(text)))
+        except Exception as e:  # noqa: BLE001
+            last = f"{type(e).__name__}: {e}"
+            print(f"[retry {i + 1}/{retries}] {url} -> {last}", file=sys.stderr)
+            time.sleep(2 ** (i + 1))
+    raise RuntimeError(f"fetch failed: {url}: {last}")
 
 
-def only_date(rows, key="Date"):
-    ds = {r[key] for r in rows}
-    if len(ds) != 1:
-        raise RuntimeError(f"期交所資料日期不唯一：{sorted(ds)}")
-    return ds.pop()
+def rng(d):
+    return f"queryStartDate={d:%Y/%m/%d}&queryEndDate={d:%Y/%m/%d}"
+
+
+def clean(r):
+    return {k.strip(): (v.strip() if isinstance(v, str) else v) for k, v in r.items() if k}
+
+
+def check_day(rows, d, what):
+    rows = [clean(r) for r in rows]
+    rows = [r for r in rows if r.get(next(iter(r), ""), "").replace("/", "-") == d.isoformat()] if rows else []
+    if not rows:
+        raise NotPublished(f"期交所 {d} {what} 無資料（假日或尚未公布）")
+    return rows
 
 
 # ---------- 收盤行情 ----------
-def parse_quotes(get_json):
-    rows = get_json(TAIFEX + "DailyMarketReportFut")
-    day = only_date(rows)
+def parse_quotes(d):
     out = {}
-    for code in {c for _, c, _ in QUOTE_ROWS}:
+    for code in [c for _, c, _ in QUOTE_ROWS]:
+        rows = check_day(get_csv("futDataDown", f"down_type=1&commodity_id={code}&commodity_id2=&{rng(d)}"), d, f"{code} 行情")
         months = {}
         for r in rows:
-            m = r["ContractMonth(Week)"]
-            if r["Contract"] != code or not m.isdigit() or len(m) != 6:
+            m = r["到期月份(週別)"]
+            if r["契約"] != code or not m.isdigit() or len(m) != 6:
                 continue
             q = months.setdefault(m, {"vol": 0, "settle": None, "oi": None, "ref": None})
-            q["vol"] += int(fnum(r["Volume"]) or 0)                 # 一般 + 盤後
-            if r["TradingSession"] == "一般":
-                q["settle"] = fnum(r["SettlementPrice"])
-                q["oi"] = fnum(r["OpenInterest"])
-                last, chg = fnum(r["Last"]), fnum(r["Change"])
+            q["vol"] += int(fnum(r["成交量"]) or 0)                     # 一般 + 盤後
+            if r["交易時段"] == "一般":
+                q["settle"] = fnum(r["結算價"])
+                q["oi"] = fnum(r["未沖銷契約數"])
+                last, chg = fnum(r["收盤價"]), fnum(r["漲跌價"])
                 if last is not None and chg is not None:
-                    q["ref"] = round(last - chg, 4)                  # 前一日結算價
+                    q["ref"] = round(last - chg, 4)                      # 前一日結算價
         out[code] = months
-    return day, out
+    return out
 
 
 # ---------- 三大法人 ----------
-def parse_inst(get_json):
-    fut = get_json(TAIFEX + "MarketDataOfMajorInstitutionalTradersDetailsOfFuturesContractsBytheDate")
-    opt = get_json(TAIFEX + "MarketDataOfMajorInstitutionalTradersDetailsOfCallsAndPutsBytheDate")
-    day = only_date(fut)
-    if only_date(opt) != day:
-        raise RuntimeError("三大法人期貨與選擇權日期不一致")
+def parse_inst(d):
+    fut = check_day(get_csv("futContractsDateDown", rng(d)), d, "三大法人期貨")
+    opt = check_day(get_csv("callsAndPutsDateDown", rng(d) + "&commodityId=TXO"), d, "三大法人選擇權")
     out = {k: {} for k in INST_NAMES.values()}
     for r in fut:
-        if r["ContractCode"] == "臺股期貨" and r["Item"] in INST_NAMES:
-            out[INST_NAMES[r["Item"]]]["fut"] = int(fnum(r["OpenInterest(Net)"]))
+        if r["商品名稱"] == "臺股期貨" and r["身份別"] in INST_NAMES:
+            out[INST_NAMES[r["身份別"]]]["fut"] = int(fnum(r["多空未平倉口數淨額"]))
     for r in opt:
-        if r["ContractCode"] == "臺指選擇權" and r["Item"] in INST_NAMES:
-            k, cp = INST_NAMES[r["Item"]], r["CallPut"].lower()
-            out[k][cp] = int(fnum(r["OpenInterest(Net)"]))
-            out[k][cp + "_amt"] = round(fnum(r["ContractValueofOpenInterest(Net)(Thousands)"]) / 1e5, 2)  # 千元→億
+        if r["商品名稱"] == "臺指選擇權" and r["身份別"] in INST_NAMES:
+            k, cp = INST_NAMES[r["身份別"]], r["買賣權別"].lower()
+            out[k][cp] = int(fnum(r["未平倉口數買賣淨額"]))
+            out[k][cp + "_amt"] = round(fnum(r["未平倉契約金額買賣淨額(千元)"]) / 1e5, 2)  # 千元→億
     for k, v in out.items():
         if len(v) != 5:
             raise RuntimeError(f"三大法人 {k} 欄位不全：{v}")
-    return day, out
+    return out
 
 
 # ---------- 十大交易人 ----------
-def parse_large(get_json):
-    f = get_json(TAIFEX + "OpenInterestOfLargeTradersFutures")
-    o = get_json(TAIFEX + "OpenInterestOfLargeTradersOptions")
-    day = only_date(f)
-    if only_date(o) != day:
-        raise RuntimeError("十大交易人期貨與選擇權日期不一致")
+def parse_large(d):
+    f = check_day(get_csv("largeTraderFutDown", f"{rng(d)}&contractId=TX"), d, "十大交易人期貨")
+    o = check_day(get_csv("largeTraderOptDown", f"{rng(d)}&contractId=TXO"), d, "十大交易人選擇權")
 
     def board(rows, match):
-        """回傳 {月份: {類型: 十大買-十大賣}} 與各月份全市場 OI；月份 999912＝全部到期月"""
+        """{月份: {類型: 十大買-十大賣}}；類型 0＝全部交易人、1＝特定法人；所有到期月份＝ALL_MONTHS"""
         net, oi = {}, {}
         for r in rows:
             if not match(r):
                 continue
-            m, t = r["SettlementMonth"], r["TypeOfTraders"]       # t=0 全部交易人、1 特定法人
-            net.setdefault(m, {})[t] = int(fnum(r["Top10Buy"]) - fnum(r["Top10Sell"]))
-            oi[m] = int(fnum(r["OIOfMarket"]))
-        months = sorted(m for m in net if m.isdigit() and m not in ("666666", "999912"))
-        if not months or "999912" not in net:
+            m, t = r["到期月份(週別)"], r["交易人類別"]
+            net.setdefault(m, {})[t] = int(fnum(r["前十大交易人買方"]) - fnum(r["前十大交易人賣方"]))
+            oi[m] = int(fnum(r["全市場未沖銷部位數"]))
+        allm = next((m for m in ALL_MONTHS if m in net), None)
+        months = sorted(m for m in net if m.isdigit() and m not in SKIP_MONTHS)
+        if not months or allm is None:
             raise RuntimeError("十大交易人缺少月份資料")
         near = months[0]
-        res = {"month": near, "oi": oi["999912"]}
-        spec_n, spec_a = net[near]["1"], net["999912"]["1"]
-        all_n, all_a = net[near]["0"], net["999912"]["0"]
-        res.update({"sp_near": spec_n, "sp_far": spec_a - spec_n,
-                    "ot_near": all_n - spec_n, "ot_far": (all_a - spec_a) - (all_n - spec_n)})
-        return res
+        spec_n, spec_a = net[near]["1"], net[allm]["1"]
+        all_n, all_a = net[near]["0"], net[allm]["0"]
+        return {"month": near, "oi": oi[allm], "sp_near": spec_n, "sp_far": spec_a - spec_n,
+                "ot_near": all_n - spec_n, "ot_far": (all_a - spec_a) - (all_n - spec_n)}
 
-    return day, {
-        "fut": board(f, lambda r: r["Contract"] == "TX"),
-        "call": board(o, lambda r: r["Contract"] == "TXO" and r["CallPut"] == "買權"),
-        "put": board(o, lambda r: r["Contract"] == "TXO" and r["CallPut"] == "賣權"),
+    return {
+        "fut": board(f, lambda r: r["商品(契約)"] == "TX"),
+        "call": board(o, lambda r: r["商品(契約)"] == "TXO" and r["買賣權"] == "買權"),
+        "put": board(o, lambda r: r["商品(契約)"] == "TXO" and r["買賣權"] == "賣權"),
     }
 
 
@@ -141,30 +166,38 @@ def fetch_cash(get_json, d):
 
 
 # ---------- 快照與組表 ----------
-def load_prev(day):
+def snapshot(d):
+    return {"date": d.isoformat(), "quotes": parse_quotes(d), "inst": parse_inst(d), "large": parse_large(d)}
+
+
+def load_snapshot(d):
+    """先看 data/fut/ 有沒有快取，沒有才向期交所抓"""
+    p = FUT_DIR / f"{d:%Y%m%d}.json"
+    if p.exists():
+        return json.loads(p.read_text())
+    snap = snapshot(d)
     FUT_DIR.mkdir(parents=True, exist_ok=True)
-    older = sorted(p for p in FUT_DIR.glob("*.json") if p.stem < day.replace("-", ""))
-    return json.loads(older[-1].read_text()) if older else None
+    p.write_text(json.dumps(snap, ensure_ascii=False, separators=(",", ":")))
+    return snap
 
 
-def snapshot(get_json):
-    d1, quotes = parse_quotes(get_json)
-    d2, inst = parse_inst(get_json)
-    d3, large = parse_large(get_json)
-    if not (d1 == d2 == d3):
-        raise RuntimeError(f"期交所各資料集日期不一致：行情 {d1}、法人 {d2}、十大交易人 {d3}（可能尚未全部公布）")
-    return {"date": d8(d1), "quotes": quotes, "inst": inst, "large": large}
+def previous_snapshot(d):
+    """往前找最近一個有資料的交易日（最多 10 天）"""
+    for i in range(1, 11):
+        try:
+            return load_snapshot(d - timedelta(days=i))
+        except NotPublished:
+            continue
+    return None
 
 
 def build(get_json, trade_date: date, gap=3.0):
-    snap = snapshot(get_json)
-    if snap["date"] != trade_date.isoformat():
-        raise RuntimeError(f"期交所資料日期 {snap['date']} 與交易日 {trade_date} 不一致（尚未公布）")
-    FUT_DIR.mkdir(parents=True, exist_ok=True)
-    (FUT_DIR / f"{snap['date'].replace('-', '')}.json").write_text(json.dumps(snap, ensure_ascii=False, separators=(",", ":")))
+    # 當天的資料不用快取，確保晚間補公布的內容會更新
+    (FUT_DIR / f"{trade_date:%Y%m%d}.json").unlink(missing_ok=True)
+    snap = load_snapshot(trade_date)
+    prev = previous_snapshot(trade_date)
     for p in sorted(FUT_DIR.glob("*.json"))[:-KEEP_SNAPSHOTS]:
         p.unlink()
-    prev = load_prev(snap["date"])
     time.sleep(gap)
     cash, idx = fetch_cash(get_json, trade_date)
     return compose(snap, prev, cash, idx)
