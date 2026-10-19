@@ -144,8 +144,13 @@ fetch("data/latest.json", { cache: "no-cache" })
   .then(r => { if (!r.ok) throw 0; return r.json(); })
   .then(j => {
     data = j;
-    document.getElementById("meta").textContent =
-      `資料日期 ${j.date}（${j.market}）・更新時間 ${j.updated_at.replace("T", " ").slice(0, 16)}`;
+    const hm = t => t.replace("T", " ").slice(0, 16);
+    // 股票與期貨各自更新，日期分開標示；股票還沒更新時顯示的是前一交易日
+    let meta = `股票資料日期 ${j.date}（${j.market}）・更新 ${hm(j.updated_at)}`;
+    if (j.fut) meta += `　期貨資料日期 ${j.fut.date}${j.fut.updated_at ? `・更新 ${hm(j.fut.updated_at)}` : ""}`;
+    const behind = j.fut && j.fut.date > j.date;
+    document.getElementById("meta").innerHTML = meta +
+      (behind ? `<br><span class="behind">股票盤後資料尚未公布，目前顯示前一交易日（${j.date}）；期貨已更新至 ${j.fut.date}</span>` : "");
     render();
   })
   .catch(() => {

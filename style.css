@@ -58,3 +58,4 @@ tr.tot td{font-weight:600;background:color-mix(in srgb,var(--accent) 4%,transpar
 .fn{color:var(--mute);font-size:12px;margin:6px 14px 12px}
 table.ft thead tr:first-child th:nth-child(n){position:sticky;text-align:right;cursor:default}
 table.ft thead tr:first-child th:first-child{text-align:left}
+.behind{color:var(--up)}

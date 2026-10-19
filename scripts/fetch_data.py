@@ -364,16 +364,28 @@ def warn(title, e):
 
 
 def attach_fut(out, old):
-    """台指期盤後快訊（期交所約 15:20 公布，比股票法人資料早）。以台灣今天的日期查，沒有資料或失敗時沿用舊的 fut，
+    """台指期盤後快訊（期交所約 15:20 公布，比股票法人資料早）。以台灣今天的日期查；
+    排程在 15:10 開跑時設 FUT_WAIT_MINUTES，還沒公布就每 5 分鐘重試。沒有資料或失敗時沿用舊的 fut，
     網頁會顯示它自己的日期，不會擋住股票資料。"""
     import fetch_fut
     today = datetime.now(timezone(timedelta(hours=8))).date()
-    try:
-        time.sleep(REQUEST_GAP)
-        out["fut"] = fetch_fut.build(get_json, today, REQUEST_GAP)
-    except Exception as e:  # noqa: BLE001
-        warn(f"台指期資料未更新（保留 {old and old['date']}）", e)
+    deadline = time.time() + 60 * int(os.environ.get("FUT_WAIT_MINUTES", "0"))
+    while True:
+        try:
+            time.sleep(REQUEST_GAP)
+            out["fut"] = fetch_fut.build(get_json, today, REQUEST_GAP)
+            out["fut"]["updated_at"] = datetime.now(timezone(timedelta(hours=8))).isoformat(timespec="seconds")
+            return
+        except fetch_fut.NotPublished as e:
+            if time.time() + 300 < deadline:
+                print(f"期貨資料尚未公布，5 分鐘後重試：{e}", file=sys.stderr)
+                time.sleep(300)
+                continue
+            warn(f"台指期資料未更新（保留 {old and old['date']}）", e)
+        except Exception as e:  # noqa: BLE001
+            warn(f"台指期資料未更新（保留 {old and old['date']}）", e)
         out["fut"] = old
+        return
 
 
 def save_history(out):
