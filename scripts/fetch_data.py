@@ -30,6 +30,7 @@ TOP_STOCK = 20    # 成交量前 N 大個股
 TOP_ETF = 15      # 成交量前 N 大 ETF
 TOP_FI = 20       # 外資買超 / 賣超前 N 大
 INST_DAYS = 10    # 法人合計天數
+HISTORY_DAYS = 30  # data/history/ 保留的日曆天數（約一個月）
 REQUEST_GAP = 3.0  # 證交所會限流，請求之間間隔秒數
 
 UA = {
@@ -369,11 +370,24 @@ def attach_fut(out):
         out["fut"] = old
 
 
+def save_history(out):
+    """每個交易日存一份完整輸出到 data/history/YYYYMMDD.json（同一天重跑會覆蓋，所以晚間補到的期貨資料也會進去），並刪除超過保留天數的舊檔。"""
+    hist = DATA / "history"
+    hist.mkdir(exist_ok=True)
+    d = date.fromisoformat(out["date"])
+    (hist / f"{d:%Y%m%d}.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
+    cutoff = f"{d - timedelta(days=HISTORY_DAYS):%Y%m%d}"
+    for p in hist.glob("*.json"):
+        if p.stem < cutoff:
+            p.unlink()
+
+
 def main():
     out = build()
     attach_fut(out)
     DATA.mkdir(exist_ok=True)
     (DATA / "latest.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
+    save_history(out)
     print(f"OK {out['date']} fut={out['fut'] and out['fut']['date']}: fi_buy={len(out['fi_buy'])} fi_sell={len(out['fi_sell'])} fi_etf_buy={len(out['fi_etf_buy'])} fi_etf_sell={len(out['fi_etf_sell'])} cap={len(out['cap'])} stocks={len(out['stocks'])} etfs={len(out['etfs'])}")
 
 

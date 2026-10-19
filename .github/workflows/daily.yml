@@ -37,7 +37,7 @@ jobs:
         run: |
           mkdir _site
           cp -r index.html style.css app.js data _site/
-          rm -rf _site/data/inst _site/data/fut
+          rm -rf _site/data/inst _site/data/fut _site/data/history
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
