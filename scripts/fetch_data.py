@@ -13,6 +13,7 @@ import json
 import re
 import sys
 import time
+import urllib.error
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -27,18 +28,30 @@ TOP_ETF = 15      # 成交量前 N 大 ETF
 INST_DAYS = 10    # 法人合計天數
 REQUEST_GAP = 3.0  # 證交所會限流，請求之間間隔秒數
 
-UA = {"User-Agent": "Mozilla/5.0 (tw-stock-daily)"}
+UA = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+    "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
+    "Referer": "https://www.twse.com.tw/zh/",
+}
 
 
 def get_json(url, retries=4):
     last = None
     for i in range(retries):
+        status, body = None, b""
         try:
             req = urllib.request.Request(url, headers=UA)
             with urllib.request.urlopen(req, timeout=40) as r:
-                return json.loads(r.read().decode("utf-8"))
+                status, body = r.status, r.read()
+            return json.loads(body.decode("utf-8"))
         except Exception as e:  # noqa: BLE001
-            last = e
+            if isinstance(e, urllib.error.HTTPError):
+                status, body = e.code, e.read()
+            snippet = body[:200].decode("utf-8", "replace").replace("\n", " ")
+            last = f"{type(e).__name__}: {e} | HTTP {status} | 回應開頭: {snippet!r}"
+            print(f"[retry {i + 1}/{retries}] {url} -> {last}", file=sys.stderr)
             time.sleep(2 ** (i + 1))
     raise RuntimeError(f"fetch failed: {url}: {last}")
 
