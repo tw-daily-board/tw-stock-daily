@@ -9,6 +9,8 @@
 
 只用標準函式庫。法人每日資料會快取在 data/inst/，之後每天只需補抓新的一天。
 """
+import csv
+import io
 import json
 import re
 import sys
@@ -37,7 +39,8 @@ UA = {
 }
 
 
-def get_json(url, retries=4):
+def get_text(url, retries=4):
+    """回傳文字內容；HTTP 失敗或例外時重試，最後丟出含狀態碼與回應開頭的錯誤。"""
     last = None
     for i in range(retries):
         status, body = None, b""
@@ -45,12 +48,25 @@ def get_json(url, retries=4):
             req = urllib.request.Request(url, headers=UA)
             with urllib.request.urlopen(req, timeout=40) as r:
                 status, body = r.status, r.read()
-            return json.loads(body.decode("utf-8"))
+            return body.decode("utf-8-sig")
         except Exception as e:  # noqa: BLE001
             if isinstance(e, urllib.error.HTTPError):
                 status, body = e.code, e.read()
             snippet = body[:200].decode("utf-8", "replace").replace("\n", " ")
             last = f"{type(e).__name__}: {e} | HTTP {status} | 回應開頭: {snippet!r}"
+            print(f"[retry {i + 1}/{retries}] {url} -> {last}", file=sys.stderr)
+            time.sleep(2 ** (i + 1))
+    raise RuntimeError(f"fetch failed: {url}: {last}")
+
+
+def get_json(url, retries=4):
+    last = None
+    for i in range(retries):
+        text = get_text(url, retries=1)
+        try:
+            return json.loads(text)
+        except ValueError as e:
+            last = f"{e} | 回應開頭: {text[:200]!r}"
             print(f"[retry {i + 1}/{retries}] {url} -> {last}", file=sys.stderr)
             time.sleep(2 ** (i + 1))
     raise RuntimeError(f"fetch failed: {url}: {last}")
@@ -97,20 +113,35 @@ def parse_quote(code, name, close, chg_raw, shares, value, issued, market):
     }
 
 
+def parse_date(v):
+    """'1151019'(民國) 或 '20261019' -> date"""
+    v = str(v).strip().replace("/", "")
+    if len(v) == 7:
+        return date(int(v[:3]) + 1911, int(v[3:5]), int(v[5:7]))
+    return datetime.strptime(v, "%Y%m%d").date()
+
+
 def fetch_twse_quotes():
-    j = get_json("https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY_ALL?response=json")
-    if j.get("stat") != "OK":
-        raise RuntimeError(f"STOCK_DAY_ALL: {j.get('stat')}")
-    trade_date = datetime.strptime(j["date"], "%Y%m%d").date()
-    f = j["fields"]
-    ix = {k: f.index(k) for k in ["證券代號", "證券名稱", "成交股數", "成交金額", "收盤價", "漲跌價差"]}
-    out = {}
-    for r in j["data"]:
+    # 這支 API 實際回傳 CSV（欄位：日期,證券代號,證券名稱,成交股數,成交金額,開盤價,最高價,最低價,收盤價,漲跌價差,成交筆數）
+    text = get_text("https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY_ALL?response=csv")
+    rows = list(csv.reader(io.StringIO(text)))
+    head = next((i for i, r in enumerate(rows) if "證券代號" in [c.strip() for c in r]), None)
+    if head is None:
+        raise RuntimeError(f"STOCK_DAY_ALL 找不到表頭，回應開頭: {text[:200]!r}")
+    f = [c.strip() for c in rows[head]]
+    ix = {k: f.index(k) for k in ["日期", "證券代號", "證券名稱", "成交股數", "成交金額", "收盤價", "漲跌價差"]}
+    out, trade_date = {}, None
+    for r in rows[head + 1:]:
+        if len(r) < len(f) or not r[ix["證券代號"]].strip():
+            continue
+        trade_date = trade_date or parse_date(r[ix["日期"]])
         code = r[ix["證券代號"]].strip()
         q = parse_quote(code, r[ix["證券名稱"]].strip(), r[ix["收盤價"]], r[ix["漲跌價差"]],
                         r[ix["成交股數"]], r[ix["成交金額"]], None, "上市")
         if q:
             out[code] = q
+    if not out or trade_date is None:
+        raise RuntimeError("STOCK_DAY_ALL 解析不到任何行情")
     return trade_date, out
 
 
