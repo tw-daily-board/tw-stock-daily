@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""盤後資料更新：抓證交所(上市)資料，產出 data/latest.json。
+"""盤後資料更新：抓證交所(上市)與櫃買中心(上櫃)資料，產出 data/latest.json。
 
 資料來源（皆為證交所公開資料）：
   - 每日收盤行情   www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY_ALL
   - 三大法人買賣超 www.twse.com.tw/rwd/zh/fund/T86
-  - 已發行股數     openapi.twse.com.tw/v1/opendata/t187ap03_L（用來算市值）
+  - 已發行股數     openapi.twse.com.tw/v1/opendata/t187ap03_L（上市市值用）
+  - 上櫃行情/法人  www.tpex.org.tw/www/zh-tw/afterTrading/otc、insti/dailyTrade
 
 只用標準函式庫。法人每日資料會快取在 data/inst/，之後每天只需補抓新的一天。
 """
@@ -62,40 +63,77 @@ def is_common_stock(code):
 
 
 # ---------- 行情 ----------
-def fetch_quotes():
+def parse_quote(code, name, close, chg_raw, shares, value, issued, market):
+    close, shares = num(close), num(shares)
+    if close is None or not shares:
+        return None  # 當日無成交
+    chg = num(chg_raw)
+    if chg is None:
+        chg = 0.0
+    elif str(chg_raw).strip().startswith("-"):
+        chg = -abs(chg)
+    prev = close - chg
+    return {
+        "code": code, "name": name, "market": market,
+        "close": close,
+        "change": round(chg, 4),
+        "pct": round(chg / prev * 100, 2) if prev else 0.0,
+        "volume": round(shares / 1000),              # 張
+        "value": num(value) or 0.0,                  # 元
+        "issued": num(issued),                       # 已發行股數（上櫃行情內含）
+    }
+
+
+def fetch_twse_quotes():
     j = get_json("https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY_ALL?response=json")
     if j.get("stat") != "OK":
         raise RuntimeError(f"STOCK_DAY_ALL: {j.get('stat')}")
     trade_date = datetime.strptime(j["date"], "%Y%m%d").date()
     f = j["fields"]
     ix = {k: f.index(k) for k in ["證券代號", "證券名稱", "成交股數", "成交金額", "收盤價", "漲跌價差"]}
-    quotes = {}
-    for row in j["data"]:
-        code = row[ix["證券代號"]].strip()
-        close = num(row[ix["收盤價"]])
-        shares = num(row[ix["成交股數"]])
-        if close is None or not shares:
-            continue  # 當日無成交
-        chg_raw = str(row[ix["漲跌價差"]])
-        chg = num(chg_raw)
-        if chg is None:
-            chg = 0.0
-        elif chg_raw.strip().startswith("-"):
-            chg = -abs(chg)
-        prev = close - chg
-        quotes[code] = {
-            "code": code,
-            "name": row[ix["證券名稱"]].strip(),
-            "close": close,
-            "change": round(chg, 4),
-            "pct": round(chg / prev * 100, 2) if prev else 0.0,
-            "volume": round(shares / 1000),                      # 張
-            "value": num(row[ix["成交金額"]]) or 0.0,            # 元
-        }
-    return trade_date, quotes
+    out = {}
+    for r in j["data"]:
+        code = r[ix["證券代號"]].strip()
+        q = parse_quote(code, r[ix["證券名稱"]].strip(), r[ix["收盤價"]], r[ix["漲跌價差"]],
+                        r[ix["成交股數"]], r[ix["成交金額"]], None, "上市")
+        if q:
+            out[code] = q
+    return trade_date, out
 
 
-# ---------- 市值 ----------
+def tpex_table(url):
+    """櫃買新版網站的 JSON：{'tables':[{'fields':[..],'data':[..]}]}；無資料回傳 None"""
+    j = get_json(url)
+    t = (j.get("tables") or [None])[0]
+    if not t or not t.get("data"):
+        return None
+    return t
+
+
+def fetch_tpex_quotes(d):
+    t = tpex_table(f"https://www.tpex.org.tw/www/zh-tw/afterTrading/otc?date={d:%Y/%m/%d}&type=EW&response=json")
+    if t is None:
+        raise RuntimeError(f"上櫃 {d} 行情無資料")
+    f = [x.strip() for x in t["fields"]]
+
+    def col(*keys):
+        for i, x in enumerate(f):
+            if any(x.startswith(k) for k in keys):
+                return i
+        raise RuntimeError(f"上櫃行情找不到欄位 {keys}；實際欄位：{f}")
+
+    ic, inm, icl, ich = col("代號"), col("名稱"), col("收盤"), col("漲跌")
+    ish, iva, iis = col("成交股數"), col("成交金額"), col("發行股數")
+    out = {}
+    for r in t["data"]:
+        code = str(r[ic]).strip()
+        q = parse_quote(code, str(r[inm]).strip(), r[icl], r[ich], r[ish], r[iva], r[iis], "上櫃")
+        if q:
+            out[code] = q
+    return out
+
+
+# ---------- 市值（上市股數） ----------
 def fetch_issued_shares():
     j = get_json("https://openapi.twse.com.tw/v1/opendata/t187ap03_L")
     out = {}
@@ -110,22 +148,56 @@ def fetch_issued_shares():
     return out
 
 
-# ---------- 三大法人 ----------
-def fetch_t86(d):
-    """回傳 {code: 三大法人買賣超股數}；非交易日/尚未公布回傳 None"""
-    url = (f"https://www.twse.com.tw/rwd/zh/fund/T86?date={d:%Y%m%d}"
-           "&selectType=ALL&response=json")
-    j = get_json(url)
+# ---------- 三大法人（外資 / 投信 / 自營商） ----------
+# 每檔存 [外資, 投信, 自營商, 合計]（股）；寫入前檢查 外資+投信+自營商 == 合計
+def check_sum(market, rows):
+    bad = sum(1 for v in rows.values() if v[0] + v[1] + v[2] != v[3])
+    if bad > max(3, len(rows) * 0.02):
+        raise RuntimeError(f"{market} 法人欄位對不上：{bad}/{len(rows)} 檔 外資+投信+自營商≠合計，請檢查欄位定義")
+
+
+def fetch_twse_inst(d):
+    j = get_json(f"https://www.twse.com.tw/rwd/zh/fund/T86?date={d:%Y%m%d}&selectType=ALL&response=json")
     if j.get("stat") != "OK" or not j.get("data"):
         return None
-    f = j["fields"]
+    f = [x.strip() for x in j["fields"]]
     ci = f.index("證券代號")
-    ni = f.index("三大法人買賣超股數")
+    i_for = next(i for i, x in enumerate(f) if x.startswith("外陸資買賣超股數"))
+    i_fd = next(i for i, x in enumerate(f) if x.startswith("外資自營商買賣超股數"))
+    i_it, i_dl, i_all = f.index("投信買賣超股數"), f.index("自營商買賣超股數"), f.index("三大法人買賣超股數")
     out = {}
-    for row in j["data"]:
-        v = num(row[ni])
-        out[row[ci].strip()] = int(v) if v is not None else 0
+    for r in j["data"]:
+        g = lambda i: int(num(r[i]) or 0)  # noqa: E731
+        out[r[ci].strip()] = [g(i_for) + g(i_fd), g(i_it), g(i_dl), g(i_all)]
+    check_sum("上市", out)
     return out
+
+
+def fetch_tpex_inst(d):
+    t = tpex_table(f"https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade?type=Daily&sect=AL&date={d:%Y/%m/%d}&id=&response=json")
+    if t is None:
+        return None
+    f = t["fields"]
+    if len(f) != 24:
+        raise RuntimeError(f"上櫃法人欄位數 {len(f)}≠24（格式改版？）：{f}")
+    # 0代號 1名稱 | 外資(不含自營)2-4 外資自營5-7 外資合計8-10 | 投信11-13 | 自營(自行)14-16 自營(避險)17-19 自營合計20-22 | 三大法人23
+    out = {}
+    for r in t["data"]:
+        g = lambda i: int(num(r[i]) or 0)  # noqa: E731
+        out[str(r[0]).strip()] = [g(10), g(13), g(22), g(23)]
+    check_sum("上櫃", out)
+    return out
+
+
+def fetch_inst(d):
+    tw = fetch_twse_inst(d)
+    if tw is None:
+        return None
+    time.sleep(REQUEST_GAP)
+    tp = fetch_tpex_inst(d)
+    if tp is None:
+        raise RuntimeError(f"上櫃 {d} 法人資料無資料，但上市有（可能尚未公布）")
+    return {**tp, **tw}
 
 
 def load_inst_history(trade_date):
@@ -141,14 +213,13 @@ def load_inst_history(trade_date):
             days.append((d, json.loads(p.read_text())))
         elif d.weekday() < 5:
             time.sleep(REQUEST_GAP)
-            data = fetch_t86(d)
+            data = fetch_inst(d)
             if data is not None:
                 p.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
                 days.append((d, data))
             elif d == trade_date:
                 raise RuntimeError(f"{d} 的三大法人資料尚未公布")
         d -= timedelta(days=1)
-    # 清掉太舊的快取
     keep = {f"{x:%Y%m%d}.json" for x, _ in days}
     for p in INST_DIR.glob("*.json"):
         if p.name not in keep and p.stem < f"{days[-1][0]:%Y%m%d}":
@@ -157,34 +228,41 @@ def load_inst_history(trade_date):
 
 
 def inst_for(code, days):
-    lots = lambda dd: round(dd.get(code, 0) / 1000)  # noqa: E731
-    today = lots(days[0][1])
-    prev = lots(days[1][1]) if len(days) > 1 else None
-    total = sum(lots(dd) for _, dd in days)
-    return {"inst_today": today, "inst_prev": prev, "inst_10d": total,
-            "inst_days": len(days)}
+    out = {"inst_days": len(days)}
+    for i, key in enumerate(["fi", "it", "dl", "inst"]):  # 外資 / 投信 / 自營商 / 合計
+        lots = lambda dd: round(dd.get(code, [0, 0, 0, 0])[i] / 1000)  # noqa: E731
+        out[f"{key}_today"] = lots(days[0][1])
+        out[f"{key}_prev"] = lots(days[1][1]) if len(days) > 1 else None
+        out[f"{key}_10d"] = sum(lots(dd) for _, dd in days)
+    return out
 
 
 def build():
-    trade_date, quotes = fetch_quotes()
+    trade_date, quotes = fetch_twse_quotes()
+    time.sleep(REQUEST_GAP)
+    quotes.update({c: q for c, q in fetch_tpex_quotes(trade_date).items() if c not in quotes})
     time.sleep(REQUEST_GAP)
     shares = fetch_issued_shares()
+    for c, q in quotes.items():
+        if q["market"] == "上市":
+            q["issued"] = shares.get(c)
     days = load_inst_history(trade_date)
     if days[0][0] != trade_date:
         raise RuntimeError("法人資料日期與行情日期不一致")
 
     def enrich(q):
+        q = {k: v for k, v in q.items() if k != "issued"}
         return {**q, **inst_for(q["code"], days)}
 
-    # 權值股：市值 = 收盤價 × 已發行普通股數；占比以全體上市普通股為分母
-    caps = {c: quotes[c]["close"] * shares[c] for c in quotes if c in shares and is_common_stock(c)}
-    total_cap = sum(caps.values())
+    # 權值股：市值 = 收盤價 × 已發行普通股數；占比以「該市場」全體普通股市值為分母
+    caps = {c: q["close"] * q["issued"] for c, q in quotes.items() if q["issued"] and is_common_stock(c)}
+    totals = {}
+    for c, v in caps.items():
+        totals[quotes[c]["market"]] = totals.get(quotes[c]["market"], 0) + v
     top_cap = sorted(caps, key=caps.get, reverse=True)[:TOP_CAP]
-    cap_rows = []
-    for rank, c in enumerate(top_cap, 1):
-        cap_rows.append({**enrich(quotes[c]), "rank": rank,
-                         "mktcap": round(caps[c] / 1e8),  # 億元
-                         "weight": round(caps[c] / total_cap * 100, 2)})
+    cap_rows = [{**enrich(quotes[c]), "rank": i, "mktcap": round(caps[c] / 1e8),
+                 "weight": round(caps[c] / totals[quotes[c]["market"]] * 100, 2)}
+                for i, c in enumerate(top_cap, 1)]
 
     def top_by_volume(pred, n):
         cs = sorted((c for c in quotes if pred(c)), key=lambda c: quotes[c]["volume"], reverse=True)[:n]
@@ -194,7 +272,7 @@ def build():
         "date": trade_date.isoformat(),
         "updated_at": datetime.now(timezone(timedelta(hours=8))).isoformat(timespec="seconds"),
         "inst_dates": [d.isoformat() for d, _ in days],
-        "market": "TWSE 上市",
+        "market": "上市＋上櫃",
         "cap": cap_rows,
         "stocks": top_by_volume(is_common_stock, TOP_STOCK),
         "etfs": top_by_volume(is_etf, TOP_ETF),
