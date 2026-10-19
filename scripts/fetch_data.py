@@ -10,6 +10,7 @@
 只用標準函式庫。法人每日資料會快取在 data/inst/，之後每天只需補抓新的一天。
 """
 import csv
+import gzip
 import io
 import json
 import re
@@ -35,6 +36,7 @@ UA = {
                   "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
     "Accept": "application/json, text/javascript, */*; q=0.01",
     "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip",
     "Referer": "https://www.twse.com.tw/zh/",
 }
 
@@ -48,6 +50,8 @@ def get_text(url, retries=4):
             req = urllib.request.Request(url, headers=UA)
             with urllib.request.urlopen(req, timeout=40) as r:
                 status, body = r.status, r.read()
+                if r.headers.get("Content-Encoding") == "gzip":
+                    body = gzip.decompress(body)
             return body.decode("utf-8-sig")
         except Exception as e:  # noqa: BLE001
             if isinstance(e, urllib.error.HTTPError):
@@ -62,11 +66,11 @@ def get_text(url, retries=4):
 def get_json(url, retries=4):
     last = None
     for i in range(retries):
-        text = get_text(url, retries=1)
         try:
+            text = get_text(url, retries=1)
             return json.loads(text)
-        except ValueError as e:
-            last = f"{e} | 回應開頭: {text[:200]!r}"
+        except (ValueError, RuntimeError) as e:
+            last = str(e) if isinstance(e, RuntimeError) else f"{e} | 回應開頭: {text[:200]!r}"
             print(f"[retry {i + 1}/{retries}] {url} -> {last}", file=sys.stderr)
             time.sleep(2 ** (i + 1))
     raise RuntimeError(f"fetch failed: {url}: {last}")
