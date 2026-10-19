@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>台股盤後速覽</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>台股盤後速覽</h1>
+  <p id="meta" class="meta">載入中…</p>
+</header>
+
+<nav id="tabs">
+  <button data-t="cap" class="on">前20大權值股</button>
+  <button data-t="stocks">成交量前20大個股</button>
+  <button data-t="etfs">成交量前15大 ETF</button>
+</nav>
+
+<main>
+  <div class="scroll"><table id="tbl"></table></div>
+  <p class="note">
+    漲紅跌綠（台股慣例）。成交量單位：張；成交金額單位：億元；三大法人買賣超單位：張（外資＋投信＋自營商）。
+    「10日合計」為最近 10 個交易日加總。範圍為上市（TWSE），個股榜已排除 ETF。權值股市值＝收盤價×已發行普通股數。
+    點欄位標題可排序。資料來源：臺灣證券交易所；僅供參考，不構成投資建議。
+  </p>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
