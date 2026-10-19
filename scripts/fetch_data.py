@@ -28,6 +28,7 @@ INST_DIR = DATA / "inst"
 TOP_CAP = 20      # 權值股數量
 TOP_STOCK = 20    # 成交量前 N 大個股
 TOP_ETF = 15      # 成交量前 N 大 ETF
+TOP_FI = 20       # 外資買超 / 賣超前 N 大
 INST_DAYS = 10    # 法人合計天數
 REQUEST_GAP = 3.0  # 證交所會限流，請求之間間隔秒數
 
@@ -316,6 +317,19 @@ def build():
         cs = sorted((c for c in quotes if pred(c)), key=lambda c: quotes[c]["volume"], reverse=True)[:n]
         return [{**enrich(quotes[c]), "rank": i} for i, c in enumerate(cs, 1)]
 
+    # 外資及陸資（含外資自營商）當日買超 / 賣超前 N 大個股（已排除 ETF），以股數排序；金額＝張數×1000×收盤價
+    fi_net = {c: days[0][1][c][0] for c in quotes if is_common_stock(c) and c in days[0][1]}
+
+    def fi_rows(codes):
+        return [{**enrich(quotes[c]), "rank": i, "fi_amt": round(fi_net[c] * quotes[c]["close"] / 1e8, 2)}
+                for i, c in enumerate(codes, 1)]
+
+    by_net = sorted(fi_net, key=lambda c: (-fi_net[c], c))
+    fi_buy = fi_rows([c for c in by_net if fi_net[c] > 0][:TOP_FI])
+    fi_sell = fi_rows([c for c in reversed(by_net) if fi_net[c] < 0][:TOP_FI])
+    fi_total = {k: sum(inst_for(c, days)[k] for c in fi_net) for k in ("fi_today", "fi_prev", "fi_10d")}
+    fi_total["fi_amt"] = round(sum(v * quotes[c]["close"] for c, v in fi_net.items()) / 1e8, 2)
+
     return {
         "date": trade_date.isoformat(),
         "updated_at": datetime.now(timezone(timedelta(hours=8))).isoformat(timespec="seconds"),
@@ -324,6 +338,9 @@ def build():
         "cap": cap_rows,
         "stocks": top_by_volume(is_common_stock, TOP_STOCK),
         "etfs": top_by_volume(is_etf, TOP_ETF),
+        "fi_buy": fi_buy,
+        "fi_sell": fi_sell,
+        "fi_total": fi_total,
     }
 
 
@@ -331,7 +348,7 @@ def main():
     out = build()
     DATA.mkdir(exist_ok=True)
     (DATA / "latest.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
-    print(f"OK {out['date']}: cap={len(out['cap'])} stocks={len(out['stocks'])} etfs={len(out['etfs'])}")
+    print(f"OK {out['date']}: fi_buy={len(out['fi_buy'])} fi_sell={len(out['fi_sell'])} cap={len(out['cap'])} stocks={len(out['stocks'])} etfs={len(out['etfs'])}")
 
 
 if __name__ == "__main__":

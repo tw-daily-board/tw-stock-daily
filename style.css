@@ -39,3 +39,9 @@ td.name{font-weight:600}
 .sub{color:var(--mute);font-size:12px;display:block;font-weight:400}
 .note{color:var(--mute);font-size:12px;margin:12px 0 32px}
 .empty{padding:40px 16px;text-align:center;color:var(--mute)}
+.sec{margin:0;padding:12px 14px 8px;font-size:15px}
+.sc{overflow-x:auto}
+.sec~.sec{border-top:1px solid var(--line);margin-top:8px}
+tfoot td{font-weight:600;border-top:1px solid var(--line);border-bottom:0;background:color-mix(in srgb,var(--accent) 4%,transparent)}
+tfoot td.name{text-align:left}
+[hidden]{display:none!important}
