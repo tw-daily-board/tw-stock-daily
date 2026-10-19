@@ -352,11 +352,29 @@ def build():
     }
 
 
+def attach_fut(out):
+    """台指期盤後快訊。期交所資料常比證交所晚公布，失敗時不擋住主資料，沿用舊的 fut（網頁會顯示它自己的日期）。"""
+    import fetch_fut
+    old = None
+    try:
+        old = json.loads((DATA / "latest.json").read_text()).get("fut")
+    except (OSError, ValueError):
+        pass
+    try:
+        time.sleep(REQUEST_GAP)
+        out["fut"] = fetch_fut.build(get_json, date.fromisoformat(out["date"]), REQUEST_GAP)
+    except Exception as e:  # noqa: BLE001
+        print(f"WARN 台指期資料略過（保留舊資料 {old and old['date']}）：{type(e).__name__}: {e}", file=sys.stderr)
+        print("::warning title=台指期資料未更新::" + str(e)[:500].replace("\n", " "))
+        out["fut"] = old
+
+
 def main():
     out = build()
+    attach_fut(out)
     DATA.mkdir(exist_ok=True)
     (DATA / "latest.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
-    print(f"OK {out['date']}: fi_buy={len(out['fi_buy'])} fi_sell={len(out['fi_sell'])} fi_etf_buy={len(out['fi_etf_buy'])} fi_etf_sell={len(out['fi_etf_sell'])} cap={len(out['cap'])} stocks={len(out['stocks'])} etfs={len(out['etfs'])}")
+    print(f"OK {out['date']} fut={out['fut'] and out['fut']['date']}: fi_buy={len(out['fi_buy'])} fi_sell={len(out['fi_sell'])} fi_etf_buy={len(out['fi_etf_buy'])} fi_etf_sell={len(out['fi_etf_sell'])} cap={len(out['cap'])} stocks={len(out['stocks'])} etfs={len(out['etfs'])}")
 
 
 if __name__ == "__main__":

@@ -47,3 +47,14 @@ tfoot td:nth-child(n+2){text-align:right}
 tfoot td.name{text-align:left}
 table.fx{table-layout:fixed;min-width:1180px}
 [hidden]{display:none!important}
+table.ft{min-width:0}
+table.ft td,table.ft th{text-align:right}
+table.ft th:first-child,table.ft td:first-child{text-align:left}
+table.ft th{cursor:default}
+table.ft td span{display:block}
+.dv{font-size:12px;opacity:.85}
+tr.idx td{background:color-mix(in srgb,var(--accent) 4%,transparent)}
+tr.tot td{font-weight:600;background:color-mix(in srgb,var(--accent) 4%,transparent)}
+.fn{color:var(--mute);font-size:12px;margin:6px 14px 12px}
+table.ft thead tr:first-child th:nth-child(n){position:sticky;text-align:right;cursor:default}
+table.ft thead tr:first-child th:first-child{text-align:left}
