@@ -4,6 +4,7 @@
   - 每日行情     cht/3/futDataDown
   - 三大法人     cht/3/futContractsDateDown、cht/3/callsAndPutsDateDown
   - 大額交易人   cht/3/largeTraderFutDown、cht/3/largeTraderOptDown
+  - 選擇權行情   cht/3/optDataDown（逐履約價未平倉，找支撐壓力）；P/C 比 cht/3/pcRatioDown
   - 現貨買賣超   證交所 BFI82U；加權指數與成交金額 證交所 FMTQIK
 不用 openapi.taifex.com.tw：它比網站晚更新（當天晚上仍是前一交易日）。
 """
@@ -27,6 +28,11 @@ QUOTE_ROWS = [("台指", "TX", 2), ("小台", "MTX", 2), ("微台", "TMF", 2),
 INST_NAMES = {"自營商": "dl", "投信": "it", "外資及陸資": "fi"}
 ALL_MONTHS = ("999912", "999999")   # 大額交易人「所有契約」
 SKIP_MONTHS = ("666666",) + ALL_MONTHS  # 666666＝週契約合計
+OPT_SERIES = 3          # 顯示最近到期的幾個系列
+OPT_KEEP_DAYS = 40      # 快照只存這麼多天內到期的系列（算未平倉變化用）
+SR_RANGE = 0.08         # 支撐壓力只在指數上下 8% 內找，排除遠價外舊倉
+CHART_RANGE = 0.04      # 分布圖畫指數上下 4%
+WEEKDAY = "一二三四五六日"
 
 
 class NotPublished(RuntimeError):
@@ -145,6 +151,62 @@ def parse_large(d):
     }
 
 
+# ---------- 選擇權逐履約價未平倉 ----------
+def parse_opt(d):
+    """{系列: {"exp": 到期日, "c": {履約價: OI}, "p": {...}}}；系列如 202610（月選）、202610W4（週三）、202610F4（週五）"""
+    rows = check_day(get_csv("optDataDown", f"down_type=1&commodity_id=TXO&commodity_id2=&{rng(d)}"), d, "選擇權行情")
+    out = {}
+    for r in rows:
+        if r["交易時段"] != "一般" or r["契約"] != "TXO":
+            continue
+        oi = fnum(r["未沖銷契約數"])
+        exp = r["契約到期日"]
+        if not oi or (date(int(exp[:4]), int(exp[4:6]), int(exp[6:8])) - d).days > OPT_KEEP_DAYS:
+            continue
+        s = out.setdefault(r["到期月份(週別)"], {"exp": exp, "c": {}, "p": {}})
+        s["c" if r["買賣權"] == "買權" else "p"][str(int(fnum(r["履約價"])))] = int(oi)
+    if not out:
+        raise RuntimeError("選擇權行情解析不到任何未平倉")
+    return out
+
+
+def fetch_pc(d):
+    """近 10 個交易日的 P/C 比（%）：成交量、未平倉"""
+    rows = get_csv("pcRatioDown", f"queryStartDate={d - timedelta(days=21):%Y/%m/%d}&queryEndDate={d:%Y/%m/%d}")
+    out = []
+    for r in map(clean, rows):
+        if r.get("日期"):
+            out.append({"date": r["日期"].replace("/", "-"), "vol": fnum(r["買賣權成交量比率%"]), "oi": fnum(r["買賣權未平倉量比率%"])})
+    return sorted(out, key=lambda x: x["date"])[-10:]
+
+
+def opt_view(snap, prev, ref):
+    """最近到期的幾個系列：支撐（指數以下賣權 OI 最大）、壓力（指數以上買權 OI 最大）、P/C、分布圖資料"""
+    after = [(k, v) for k, v in snap["opt"].items() if v["exp"] > snap["date"].replace("-", "")]
+    out = []
+    for code, s in sorted(after, key=lambda kv: kv[1]["exp"])[:OPT_SERIES]:
+        ps = ((prev or {}).get("opt") or {}).get(code)
+        e = date(int(s["exp"][:4]), int(s["exp"][4:6]), int(s["exp"][6:8]))
+        kind = "週選" if any(x in code[6:] for x in "WF") else "月選"
+        dif = lambda side, k: None if ps is None else s[side].get(k, 0) - ps[side].get(k, 0)  # noqa: E731
+
+        def top(side, rng):
+            # 壓力：指數以上的買權；支撐：指數以下的賣權（價內的部位不算支撐壓力）
+            ks = [k for k in s[side] if abs(int(k) - ref) <= ref * rng and (int(k) >= ref if side == "c" else int(k) <= ref)]
+            ks.sort(key=lambda k: -s[side][k])
+            return [{"strike": int(k), "oi": s[side][k], "d": dif(side, k)} for k in ks[:3]]
+
+        strikes = sorted({int(k) for side in "cp" for k in s[side] if abs(int(k) - ref) <= ref * CHART_RANGE})
+        tc, tp = sum(s["c"].values()), sum(s["p"].values())
+        out.append({
+            "code": code, "exp": e.isoformat(), "label": f"{e.month}/{e.day}（{WEEKDAY[e.weekday()]}）{kind}",
+            "call_oi": tc, "put_oi": tp, "pc": round(tp / tc * 100, 1) if tc else None,
+            "resist": top("c", SR_RANGE), "support": top("p", SR_RANGE),
+            "rows": [[k, s["c"].get(str(k), 0), s["p"].get(str(k), 0), dif("c", str(k)), dif("p", str(k))] for k in strikes],
+        })
+    return {"ref": ref, "series": out, "sr_range": SR_RANGE, "chart_range": CHART_RANGE}
+
+
 # ---------- 現貨（證交所） ----------
 def fetch_cash(get_json, d):
     """三大法人現貨買賣超金額（億元）與加權指數、成交金額（兆元）"""
@@ -167,14 +229,16 @@ def fetch_cash(get_json, d):
 
 # ---------- 快照與組表 ----------
 def snapshot(d):
-    return {"date": d.isoformat(), "quotes": parse_quotes(d), "inst": parse_inst(d), "large": parse_large(d)}
+    return {"date": d.isoformat(), "quotes": parse_quotes(d), "inst": parse_inst(d), "large": parse_large(d), "opt": parse_opt(d)}
 
 
 def load_snapshot(d):
     """先看 data/fut/ 有沒有快取，沒有才向期交所抓"""
     p = FUT_DIR / f"{d:%Y%m%d}.json"
     if p.exists():
-        return json.loads(p.read_text())
+        snap = json.loads(p.read_text())
+        if "opt" in snap:  # 舊版快照沒有選擇權資料就重抓
+            return snap
     snap = snapshot(d)
     FUT_DIR.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(snap, ensure_ascii=False, separators=(",", ":")))
@@ -200,7 +264,10 @@ def build(get_json, trade_date: date, gap=3.0):
         p.unlink()
     time.sleep(gap)
     cash, idx = fetch_cash(get_json, trade_date)
-    return compose(snap, prev, cash, idx)
+    out = compose(snap, prev, cash, idx)
+    out["opt"] = opt_view(snap, prev, idx["close"])
+    out["pc"] = fetch_pc(trade_date)
+    return out
 
 
 def delta(cur, old):
