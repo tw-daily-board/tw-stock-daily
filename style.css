@@ -107,3 +107,13 @@ td.nb{display:flex;justify-content:flex-end;align-items:center;gap:6px}
 td.nb span{min-width:52px;text-align:right}
 td.nb i{border-radius:2px;order:-1}
 td.sb i{display:inline-block;height:9px;border-radius:0 4px 4px 0;background:var(--accent);opacity:.55;margin-right:6px;vertical-align:-1px}
+/* 綜合分析 */
+.tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600;border:1px solid currentColor}
+.tag.nt{color:var(--mute)}
+table.sig td{white-space:normal;vertical-align:top}
+table.sig td.dt{text-align:left;color:var(--mute);font-size:13px;min-width:280px}
+table.sig td.val{white-space:nowrap;font-weight:600}
+table.sig td.name{text-align:left;white-space:nowrap}
+table.sig td.grpc{color:var(--mute);font-size:13px;white-space:nowrap}
+table.sig th:nth-child(-n+2),table.sig th:last-child{text-align:left}
+table.sig tr.g1 td{border-top:2px solid var(--line)}

@@ -2,12 +2,14 @@ name: daily-update
 
 on:
   schedule:
-    # 台灣時間 週一~五兩次（UTC 07:13 / 08:43）：
+    # 台灣時間 週一~五三次（UTC 07:13 / 08:43 / 12:57）：
     # 15:13 期貨資料（期交所約 15:20 公布，程式內每 5 分鐘重試，最多等 45 分鐘）；
     #       股票三大法人資料較晚，若還沒出就沿用舊的股票資料。
     # 16:43 股票盤後資料（三大法人約 16:20 公布）；若還沒公布會在程式內每 10 分鐘重試，最多等 60 分鐘。
+    # 20:57 綜合訊號（含融資融券，晚間公布；沒出就每 10 分鐘重試，最多等 60 分鐘），也順便取得修正後的成交量值。
     - cron: "13 7 * * 1-5"
     - cron: "43 8 * * 1-5"
+    - cron: "57 12 * * 1-5"
   workflow_dispatch:
 
 permissions:
@@ -31,6 +33,7 @@ jobs:
         env:
           FUT_WAIT_MINUTES: ${{ github.event.schedule == '13 7 * * 1-5' && '45' || '0' }}
           STOCK_WAIT_MINUTES: ${{ github.event.schedule == '43 8 * * 1-5' && '60' || '0' }}
+          MARGIN_WAIT_MINUTES: ${{ github.event.schedule == '57 12 * * 1-5' && '60' || '0' }}
         run: python scripts/fetch_data.py
       - name: 提交資料
         run: |
@@ -49,7 +52,7 @@ jobs:
         run: |
           mkdir _site
           cp -r index.html style.css app.js data _site/
-          rm -rf _site/data/inst _site/data/fut _site/data/history _site/data/market
+          rm -rf _site/data/inst _site/data/fut _site/data/history _site/data/market _site/data/chips
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

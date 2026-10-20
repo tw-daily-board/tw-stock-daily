@@ -441,6 +441,13 @@ def main():
             out, fresh = old, False
             break
     attach_fut(out, (old or {}).get("fut"))
+    # 綜合訊號（含融資融券，約晚上才公布；21:00 前的排程會標示尚未公布）
+    import fetch_signals
+    try:
+        out["signals"] = fetch_signals.build(get_json, out, REQUEST_GAP, int(os.environ.get("MARGIN_WAIT_MINUTES", "0")), warn)
+    except Exception as e:  # noqa: BLE001
+        warn("綜合訊號未更新", e)
+        out["signals"] = (old or {}).get("signals")
     (DATA / "latest.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
     if fresh:
         save_history(out)

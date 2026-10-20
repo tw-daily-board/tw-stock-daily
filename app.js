@@ -173,6 +173,30 @@ function renderMarket(m) {
       '<p class="fn">成交金額由上市普通股依產業別加總，占比以這些類股合計為分母；漲跌為證交所各類股指數。</p>');
 }
 
+// ---- 綜合分析：規則式訊號表 ----
+function renderSignals(s) {
+  if (!s) return '<div class="empty">綜合分析尚未產生，之後排程會自動補上。</div>';
+  const tag = b => b > 0 ? '<span class="tag up">偏多</span>' : b < 0 ? '<span class="tag down">偏空</span>' : '<span class="tag nt">中性</span>';
+  const { bull, bear, neutral, verdict } = s.score;
+  const tot = bull + bear + neutral || 1;
+  const vc = verdict === "偏多" ? "up" : verdict === "偏空" ? "down" : "";
+  let last = "";
+  const rows = s.items.map(i => {
+    const g = i.group === last ? "" : i.group;
+    last = i.group;
+    return `<tr class="${g ? "g1" : ""}"><td class="grpc">${g}</td><td class="name">${i.name}</td><td class="val">${i.value}</td><td>${tag(i.bias)}</td><td class="dt">${i.detail}</td></tr>`;
+  }).join("");
+  const dates = [`股票 ${s.date}`, s.fut_date && `期貨 ${s.fut_date}`, `融資融券 ${s.chips_date || "尚未公布"}`].filter(Boolean).join("・");
+  return `<h2 class="sec">綜合分析（${s.date}）</h2><div class="sc opt">
+    <div class="sr">
+      <div><h3>綜合判讀</h3><p class="big ${vc}">${verdict}</p><p class="mute">偏多 ${bull} 項・偏空 ${bear} 項・中性 ${neutral} 項</p>
+        <div class="ratio"><i class="u" style="width:${bull / tot * 100}%"></i><i class="f" style="width:${neutral / tot * 100}%"></i><i class="d" style="width:${bear / tot * 100}%"></i></div></div>
+      <div><h3>資料日期</h3><p>${dates}</p><p class="mute">產出時間 ${s.generated_at.replace("T", " ").slice(0, 16)}</p></div>
+    </div></div>
+    <div class="sc"><table class="ft sig"><thead><tr><th>分類</th><th>項目</th><th>數值</th><th>判讀</th><th>說明</th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="fn">每項依固定門檻判讀：外資現貨 ±30 億、投信 ±10 億、騰落 ±200 家、外資台指與十大特定法人變化 ±1,000 口、外資選擇權淨金額 ±0.5 億、P/C 比較前 5 日平均 ±5 個百分點、台積電外資 ±1,000 張、前 20 大權值股外資合計 ±5,000 張；量能放量（20 日量比 ≥1.2）時依漲跌判讀；融資在指數下跌時增加視為偏空、在指數上漲時減少視為偏多。偏多與偏空項數相差 3 項以上才判為偏多或偏空，否則為多空互見。此為規則統計，不是預測，也不構成投資建議。</p></div>`;
+}
+
 function renderFut(f) {
   const ix = f.index;
   const mk = [`<tr class="idx"><td class="name">加權指數</td><td>${num(ix.close, 2)}</td><td class="${cls(ix.change)}">${sg(ix.change, 2)}</td><td class="${cls(ix.change)}">${sg(ix.pct, 2)}%</td><td>${num(ix.value_tril, 6)} 兆元</td><td>-</td><td>-</td></tr>`]
@@ -193,8 +217,9 @@ function renderFut(f) {
 function render() {
   const box = document.querySelector(".scroll");
   const cs = cols();
-  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt"].includes(tab);
+  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig"].includes(tab);
   if (tab === "mkt") { box.innerHTML = renderMarket(data.market_breadth); return; }
+  if (tab === "sig") { box.innerHTML = renderSignals(data.signals); return; }
   if (tab === "opt") {
     box.innerHTML = data.fut ? renderOpt(data.fut.opt, data.fut.pc, data.fut.date) : '<div class="empty">期交所資料尚未公布，之後排程會自動補上。</div>';
     box.querySelectorAll("[data-opt]").forEach(b => b.onclick = () => { optSel = +b.dataset.opt; render(); });
