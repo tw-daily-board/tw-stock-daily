@@ -14,8 +14,8 @@ const CAP_EXTRA = [
   { k: "weight", t: "占該市場", f: v => v.toFixed(2) + "%" },
 ];
 // 法人欄位：[前綴, 群組名稱]；每組 當日 / 前日 / 10日合計（單位：張）
-const INST_ALL = [["inst", "三大法人合計"]];
-const INST_SPLIT = [["fi", "外資"], ["it", "投信"], ["dl", "自營商"]];
+// 法人欄位一次只顯示一組（外資／投信／自營商／合計），表格才不會寬到要橫向捲動
+const INST_VIEWS = { fi: ["fi", "外資"], it: ["it", "投信"], dl: ["dl", "自營商"], inst: ["inst", "三大法人合計"] };
 const INST_SUB = [["today", "當日"], ["prev", "前日"], ["10d", "10日合計"]];
 function signed(s, v) { return v > 0 ? "+" + s : s; }
 function n(v) { return v == null ? "-" : signed(v.toLocaleString(), v); }
@@ -39,7 +39,7 @@ let site = "yahoo";
 try { const v = localStorage.getItem("site"); if (v in SITES) site = v; } catch (e) { /* 無痕模式等情況下略過 */ }
 const stockLink = (code, txt) => `<a class="sl" href="${SITES[site][1](encodeURIComponent(code))}" target="_blank" rel="noopener noreferrer">${txt}</a>`;
 
-let data = null, tab = "cap", view = "split", sort = null;
+let data = null, tab = "cap", view = "fi", sort = null;
 
 function cols() {
   if (isFi(tab)) {
@@ -50,11 +50,8 @@ function cols() {
   }
   const c = BASE.slice();
   if (tab === "cap") c.splice(9, 0, ...CAP_EXTRA);
-  const groups = [];
-  for (const [p, g] of (view === "split" ? INST_SPLIT : INST_ALL)) {
-    for (const [s, t] of INST_SUB) c.push({ k: `${p}_${s}`, t, f: n, c: true, g, first: s === "today" });
-    groups.push(g);
-  }
+  const [p, g] = INST_VIEWS[view];
+  for (const [s, t] of INST_SUB) c.push({ k: `${p}_${s}`, t, f: n, c: true, g, first: s === "today" });
   return c;
 }
 
@@ -64,7 +61,7 @@ function tableHtml(key, rows, cs, total) {
     rows = rows.slice().sort((a, b) => (typeof a[k] === "string" ? a[k].localeCompare(b[k]) : (a[k] ?? -Infinity) - (b[k] ?? -Infinity)) * dir);
   }
   const plain = cs.filter(c => !c.g).length;
-  const grps = isFi(tab) ? [["fi", "外資及陸資"]] : (view === "split" ? INST_SPLIT : INST_ALL);
+  const grps = isFi(tab) ? [["fi", "外資及陸資"]] : [INST_VIEWS[view]];
   const groupRow = "<tr>" + `<th class="plain" colspan="${plain}"></th>` +
     grps.map(([p, g]) => `<th class="grp" colspan="${cs.filter(c => c.g === g).length}">${g}（張）</th>`).join("") + "</tr>";
   const th = c => `<th data-k="${c.k}" data-sec="${key}" class="${c.first ? "gl " : ""}${sort?.sec === key && sort.k === c.k ? (sort.dir > 0 ? "asc" : "desc") : ""}">${c.t}</th>`;
