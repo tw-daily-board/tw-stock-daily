@@ -377,7 +377,7 @@ def warn(title, e):
 
 def attach_fut(out, old):
     """台指期盤後快訊（期交所約 15:20 公布，比股票法人資料早）。以台灣今天的日期查；
-    排程在 15:10 開跑時設 FUT_WAIT_MINUTES，還沒公布就每 5 分鐘重試。沒有資料或失敗時沿用舊的 fut，
+    排程在 15:13 開跑時設 FUT_WAIT_MINUTES，還沒公布就每 5 分鐘重試。沒有資料或失敗時沿用舊的 fut，
     網頁會顯示它自己的日期，不會擋住股票資料。"""
     import fetch_fut
     today = datetime.now(timezone(timedelta(hours=8))).date()
