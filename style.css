@@ -96,3 +96,14 @@ i.call{background:var(--call)}i.put{background:var(--put)}
 .tv table{max-width:520px}
 table.pc{max-width:360px}
 @media (max-width:600px){.br{grid-template-columns:1fr 52px 1fr}}
+/* 市場整體強弱 */
+.bd{display:flex;flex-wrap:wrap;gap:4px 12px;margin:2px 0 6px;font-variant-numeric:tabular-nums;font-weight:600}
+.bd small{font-weight:400;font-size:12px}
+.mute2{color:var(--mute)}
+.ratio{display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px}
+.ratio i,.nb i{display:block;height:10px}
+.ratio .u,.nb .u{background:var(--up)}.ratio .d,.nb .d{background:var(--down)}.ratio .f{background:var(--line)}
+td.nb{display:flex;justify-content:flex-end;align-items:center;gap:6px}
+td.nb span{min-width:52px;text-align:right}
+td.nb i{border-radius:2px;order:-1}
+td.sb i{display:inline-block;height:9px;border-radius:0 4px 4px 0;background:var(--accent);opacity:.55;margin-right:6px;vertical-align:-1px}

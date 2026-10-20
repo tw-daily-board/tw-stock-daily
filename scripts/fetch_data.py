@@ -190,17 +190,20 @@ def fetch_tpex_quotes(d):
 
 # ---------- 市值（上市股數） ----------
 def fetch_issued_shares():
+    """回傳 (代號→已發行普通股數, 代號→產業別代碼)"""
     j = get_json("https://openapi.twse.com.tw/v1/opendata/t187ap03_L")
-    out = {}
+    out, ind = {}, {}
     for r in j:
         code = r.get("公司代號", "").strip()
         key = next((k for k in r if "已發行普通股數" in k), None)
         v = num(r.get(key)) if key else None
         if code and v:
             out[code] = v
+        if code and r.get("產業別"):
+            ind[code] = r["產業別"].strip()
     if not out:
         raise RuntimeError("t187ap03_L: 找不到已發行股數欄位")
-    return out
+    return out, ind
 
 
 # ---------- 三大法人（外資 / 投信 / 自營商） ----------
@@ -297,7 +300,7 @@ def build():
     time.sleep(REQUEST_GAP)
     quotes.update({c: q for c, q in fetch_tpex_quotes(trade_date).items() if c not in quotes})
     time.sleep(REQUEST_GAP)
-    shares = fetch_issued_shares()
+    shares, industry = fetch_issued_shares()
     for c, q in quotes.items():
         if q["market"] == "上市":
             q["issued"] = shares.get(c)
@@ -341,8 +344,17 @@ def build():
     fi_buy, fi_sell, fi_total = fi_board(is_common_stock)
     fi_etf_buy, fi_etf_sell, fi_etf_total = fi_board(is_etf)
 
+    # 市場整體強弱：失敗不擋住其他股票資料
+    import fetch_market
+    try:
+        market = fetch_market.build(get_json, trade_date, quotes, industry, REQUEST_GAP)
+    except Exception as e:  # noqa: BLE001
+        warn("市場強弱資料未更新", e)
+        market = None
+
     return {
         "date": trade_date.isoformat(),
+        "market_breadth": market,
         "updated_at": datetime.now(timezone(timedelta(hours=8))).isoformat(timespec="seconds"),
         "inst_dates": [d.isoformat() for d, _ in days],
         "market": "上市＋上櫃",
