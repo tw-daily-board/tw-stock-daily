@@ -423,7 +423,7 @@ def main():
     except (OSError, ValueError):
         old = None
     fresh = True
-    # 股票排程（18:00）設 STOCK_WAIT_MINUTES：資料還沒出時每 10 分鐘重試，最多等這麼久
+    # 股票排程（16:43）設 STOCK_WAIT_MINUTES：資料還沒出時每 10 分鐘重試，最多等這麼久
     deadline = time.time() + 60 * int(os.environ.get("STOCK_WAIT_MINUTES", "0"))
     while True:
         try:
@@ -434,7 +434,7 @@ def main():
                 print(f"股票資料尚未公布，10 分鐘後重試：{e}", file=sys.stderr)
                 time.sleep(600)
                 continue
-            # 期貨排程（15:40）時股票法人資料通常還沒出：沿用舊的股票資料，只更新期貨
+            # 期貨排程（15:13）時股票法人資料通常還沒出：沿用舊的股票資料，只更新期貨
             if old is None:
                 raise
             warn("股票資料尚未公布，沿用舊資料", e)
