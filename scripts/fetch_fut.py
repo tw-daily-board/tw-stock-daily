@@ -79,11 +79,22 @@ def check_day(rows, d, what):
     return rows
 
 
+def day_rows(path, params, d, what, tries=3):
+    """下載並取出當日資料列。期交所偶爾回傳空內容，空的時候先重試幾次，確定沒有才算尚未公布。"""
+    for i in range(tries):
+        try:
+            return check_day(get_csv(path, params), d, what)
+        except NotPublished:
+            if i == tries - 1:
+                raise
+            time.sleep(5 * (i + 1))
+
+
 # ---------- 收盤行情 ----------
 def parse_quotes(d):
     out = {}
     for code in [c for _, c, _ in QUOTE_ROWS]:
-        rows = check_day(get_csv("futDataDown", f"down_type=1&commodity_id={code}&commodity_id2=&{rng(d)}"), d, f"{code} 行情")
+        rows = day_rows("futDataDown", f"down_type=1&commodity_id={code}&commodity_id2=&{rng(d)}", d, f"{code} 行情")
         months = {}
         for r in rows:
             m = r["到期月份(週別)"]
@@ -103,8 +114,8 @@ def parse_quotes(d):
 
 # ---------- 三大法人 ----------
 def parse_inst(d):
-    fut = check_day(get_csv("futContractsDateDown", rng(d)), d, "三大法人期貨")
-    opt = check_day(get_csv("callsAndPutsDateDown", rng(d) + "&commodityId=TXO"), d, "三大法人選擇權")
+    fut = day_rows("futContractsDateDown", rng(d), d, "三大法人期貨")
+    opt = day_rows("callsAndPutsDateDown", rng(d) + "&commodityId=TXO", d, "三大法人選擇權")
     out = {k: {} for k in INST_NAMES.values()}
     for r in fut:
         if r["商品名稱"] == "臺股期貨" and r["身份別"] in INST_NAMES:
@@ -122,8 +133,8 @@ def parse_inst(d):
 
 # ---------- 十大交易人 ----------
 def parse_large(d):
-    f = check_day(get_csv("largeTraderFutDown", f"{rng(d)}&contractId=TX"), d, "十大交易人期貨")
-    o = check_day(get_csv("largeTraderOptDown", f"{rng(d)}&contractId=TXO"), d, "十大交易人選擇權")
+    f = day_rows("largeTraderFutDown", f"{rng(d)}&contractId=TX", d, "十大交易人期貨")
+    o = day_rows("largeTraderOptDown", f"{rng(d)}&contractId=TXO", d, "十大交易人選擇權")
 
     def board(rows, match):
         """{月份: {類型: 十大買-十大賣}}；類型 0＝全部交易人、1＝特定法人；所有到期月份＝ALL_MONTHS"""
@@ -154,7 +165,7 @@ def parse_large(d):
 # ---------- 選擇權逐履約價未平倉 ----------
 def parse_opt(d):
     """{系列: {"exp": 到期日, "c": {履約價: OI}, "p": {...}}}；系列如 202610（月選）、202610W4（週三）、202610F4（週五）"""
-    rows = check_day(get_csv("optDataDown", f"down_type=1&commodity_id=TXO&commodity_id2=&{rng(d)}"), d, "選擇權行情")
+    rows = day_rows("optDataDown", f"down_type=1&commodity_id=TXO&commodity_id2=&{rng(d)}", d, "選擇權行情")
     out = {}
     for r in rows:
         if r["交易時段"] != "一般" or r["契約"] != "TXO":
@@ -248,6 +259,8 @@ def load_snapshot(d):
 def previous_snapshot(d):
     """往前找最近一個有資料的交易日（最多 10 天）"""
     for i in range(1, 11):
+        if (d - timedelta(days=i)).weekday() >= 5:
+            continue
         try:
             return load_snapshot(d - timedelta(days=i))
         except NotPublished:
