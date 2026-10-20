@@ -19,7 +19,7 @@
 2. Actions → daily-update → Run workflow（第一次會抓 10 天法人資料，約 1 分鐘）
 
 ## 本機測試
-    python3 scripts/fetch_data.py && python3 -m http.server   # 開 http://localhost:8000
+    
 
 ## 限制
 - 上市（TWSE）＋上櫃（TPEx）；不含興櫃
