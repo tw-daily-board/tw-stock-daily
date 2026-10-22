@@ -435,8 +435,47 @@ def save_history(out):
             p.unlink()
 
 
+def is_trading_day(d):
+    """證交所假日表（名稱含「開始交易」「最後交易」的是交易日，其餘為休市）"""
+    if d.weekday() >= 5:
+        return False
+    j = get_json("https://www.twse.com.tw/rwd/zh/holidaySchedule/holidaySchedule?response=json")
+    if str(j.get("stat")).upper() != "OK" or not j.get("data"):
+        raise RuntimeError("證交所假日表抓不到")
+    off = {r[0] for r in j["data"] if "開始交易" not in r[1] and "最後交易" not in r[1]}
+    return d.isoformat() not in off
+
+
+def check_required(require, out, today):
+    """排程負責的資料最後還是沒有今天的，就回傳錯誤訊息（流程會失敗並顯示在 Annotations）"""
+    t = today.isoformat()
+    errs = []
+    if "fut" in require and (out.get("fut") or {}).get("date") != t:
+        errs.append(f"期貨資料仍是 {(out.get('fut') or {}).get('date')}，沒有 {t}")
+    if "stock" in require:
+        if out.get("date") != t:
+            errs.append(f"股票資料仍是 {out.get('date')}，沒有 {t}")
+        if (out.get("market_breadth") or {}).get("date") != t:
+            errs.append("市場強弱資料沒有更新到今天")
+        try:
+            sd = json.loads((DATA / "screens.json").read_text()).get("date")
+        except (OSError, ValueError):
+            sd = None
+        if sd != t:
+            errs.append(f"籌碼篩選資料仍是 {sd}，沒有 {t}")
+    if "margin" in require and (out.get("signals") or {}).get("chips_date") != t:
+        errs.append(f"融資融券仍是 {(out.get('signals') or {}).get('chips_date')}，沒有 {t}")
+    return errs
+
+
 def main():
     DATA.mkdir(exist_ok=True)
+    # 排程負責的資料（workflow 依排程設定 REQUIRE）：fut＝15:13、stock＝16:43、margin＝20:57；手動執行不設
+    require = {x for x in os.environ.get("REQUIRE", "").split(",") if x}
+    today = datetime.now(timezone(timedelta(hours=8))).date()
+    if require and not is_trading_day(today):
+        print(f"{today} 休市，不更新")
+        return
     try:
         old = json.loads((DATA / "latest.json").read_text())
     except (OSError, ValueError):
@@ -471,6 +510,10 @@ def main():
     if fresh:
         save_history(out)
     print(f"OK {out['date']}{'' if fresh else '（沿用舊股票資料）'} fut={out['fut'] and out['fut']['date']}")
+    # 已抓到的資料照常寫入（workflow 仍會提交與部署），但排程負責的資料缺了就讓流程失敗
+    errs = check_required(require, out, today)
+    if errs:
+        raise RuntimeError("；".join(errs))
 
 
 if __name__ == "__main__":

@@ -34,8 +34,11 @@ jobs:
           FUT_WAIT_MINUTES: ${{ github.event.schedule == '13 7 * * 1-5' && '45' || '0' }}
           STOCK_WAIT_MINUTES: ${{ github.event.schedule == '43 8 * * 1-5' && '60' || '0' }}
           MARGIN_WAIT_MINUTES: ${{ github.event.schedule == '57 12 * * 1-5' && '60' || '0' }}
+          # 這次排程負責的資料：最後還是沒抓到今天的就讓流程失敗（手動執行不檢查）
+          REQUIRE: ${{ github.event.schedule == '13 7 * * 1-5' && 'fut' || github.event.schedule == '43 8 * * 1-5' && 'stock' || github.event.schedule == '57 12 * * 1-5' && 'margin' || '' }}
         run: python scripts/fetch_data.py
       - name: 提交資料
+        if: ${{ !cancelled() }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -48,12 +51,16 @@ jobs:
           done
           exit 1
       - uses: actions/configure-pages@v5
+        if: ${{ !cancelled() }}
       - name: 打包網站
+        if: ${{ !cancelled() }}
         run: |
           mkdir _site
           cp -r index.html style.css app.js data _site/
           rm -rf _site/data/inst _site/data/fut _site/data/history _site/data/market _site/data/chips _site/data/quotes
       - uses: actions/upload-pages-artifact@v3
+        if: ${{ !cancelled() }}
         with:
           path: _site
       - uses: actions/deploy-pages@v4
+        if: ${{ !cancelled() }}
