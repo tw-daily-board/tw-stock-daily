@@ -120,3 +120,4 @@ table.sig tr.g1 td{border-top:2px solid var(--line)}
 /* 籌碼篩選 */
 table.scr td:nth-child(-n+4),table.scr thead tr:first-child th:nth-child(-n+4){text-align:left}
 table.scr td a.sl{font-weight:inherit}
+td.hot5{font-weight:700;color:var(--accent)}

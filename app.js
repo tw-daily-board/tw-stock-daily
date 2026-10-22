@@ -198,7 +198,7 @@ function renderSignals(s) {
 }
 
 // ---- 籌碼篩選：連買連賣、籌碼背離、隔日沖（讀 data/screens.json，第一次打開分頁才載入） ----
-let scr = null, scrState = { mode: "streak", cat: "fi", dir: 1, min: 3, etf: false, sort: null };
+let scr = null, scrState = { mode: "streak", cat: "fi", dir: 1, min: 3, etf: false, sort: null, flipView: null };
 const SCR_MODES = [["streak", "連買連賣"], ["diverge", "籌碼背離"], ["flips", "隔日沖"]];
 const pctCell = v => v == null ? "<td>-</td>" : `<td class="${cls(v)}">${sg(v, 2)}%</td>`;
 const lotCell = v => `<td class="${cls(v)}">${sg(v)}</td>`;
@@ -207,7 +207,15 @@ function scrRows() {
   const s = scrState, list = (scr[s.mode === "streak" ? "streaks" : s.mode][s.cat] || []).filter(r => r.etf === s.etf);
   if (s.mode === "streak") return list.filter(r => Math.sign(r.days) === s.dir && Math.abs(r.days) >= s.min);
   if (s.mode === "diverge") return list.filter(r => Math.sign(r.cum) === s.dir);
-  return list.filter(r => Math.sign(r.prev) === s.dir);
+  return list;
+}
+
+// 隔日沖：逐日名單（近 5 個交易日可切換）或熱門股（近 5 日沖銷次數、連續一買一賣天數）
+function flipRows() {
+  const s = scrState, d = s.flipView || scr.flip_dates[0];
+  if (d === "hot") return (scr.flip_hot[s.cat] || []).filter(r => r.etf === s.etf)
+    .map(r => ({ ...r, ...Object.fromEntries(r.lots.map((v, i) => ["l" + i, v])) }));
+  return ((scr.flips[s.cat] || {})[d] || []).filter(r => r.etf === s.etf && Math.sign(r.prev) === s.dir);
 }
 
 function renderScreens() {
@@ -217,9 +225,13 @@ function renderScreens() {
   const cats = Object.entries(scr.cats).filter(([k]) => s.mode !== "diverge" || ["fi", "it"].includes(k));
   if (!cats.some(([k]) => k === s.cat)) s.cat = "fi";
   const btn = (attr, val, label, on) => `<button ${attr}="${val}" class="${on ? "on" : ""}">${label}</button>`;
-  const dirs = s.mode === "streak" ? [[1, "連買"], [-1, "連賣"]] : s.mode === "diverge" ? [[1, "買超但不漲"], [-1, "賣超但不跌"]] : [[1, "前日買→今日賣"], [-1, "前日賣→今日買"]];
+  const hot = s.mode === "flips" && s.flipView === "hot";
+  const fv = s.flipView || scr.flip_dates[0];
+  const dirs = hot ? [] : s.mode === "streak" ? [[1, "連買"], [-1, "連賣"]] : s.mode === "diverge" ? [[1, "買超但不漲"], [-1, "賣超但不跌"]] : [[1, "前日買→今日賣"], [-1, "前日賣→今日買"]];
+  const md = d => d.slice(5).replace("-", "/");
   const ctrl = `<nav class="optnav">${SCR_MODES.map(([k, t]) => btn("data-sm", k, t, s.mode === k)).join("")}</nav>
     <nav class="optnav">${cats.map(([k, t]) => btn("data-sc", k, t, s.cat === k)).join("")}</nav>
+    ${s.mode === "flips" ? `<nav class="optnav">${scr.flip_dates.map(d => btn("data-sfv", d, md(d), fv === d)).join("")}${btn("data-sfv", "hot", `熱門股（近 ${R.flip_days} 日）`, hot)}</nav>` : ""}
     <nav class="optnav">${dirs.map(([v, t]) => btn("data-sd", v, t, s.dir === v)).join("")}
       ${s.mode === "streak" ? [3, 5].map(n => btn("data-sn", n, `${n} 日以上`, s.min === n)).join("") : ""}
       ${btn("data-se", 0, "個股", !s.etf)}${btn("data-se", 1, "ETF", s.etf)}</nav>`;
@@ -228,8 +240,9 @@ function renderScreens() {
   let extra;
   if (s.mode === "streak") extra = [["days", "連續天數"], ["cum", "期間累計(張)"], ["today", "當日(張)"], ["ppct", "期間漲跌幅"]];
   else if (s.mode === "diverge") extra = [["cum", `近${R.diverge_days}日累計(張)`], ["today", "當日(張)"], ["ppct", `近${R.diverge_days}日漲跌幅`]];
+  else if (hot) extra = [...scr.flip_dates.slice().reverse().map((d, i) => ["l" + i, md(d)]), ["n_flip", "沖銷次數"], ["alt", "連續一買一賣"]];
   else extra = [["prev", "前日(張)"], ["today", "當日(張)"], ["ratio", "反向比例"]];
-  let rows = scrRows().map((r, i) => ({ ...r, rank: i + 1 }));
+  let rows = (s.mode === "flips" ? flipRows() : scrRows()).map((r, i) => ({ ...r, rank: i + 1 }));
   if (s.sort) {
     const { k, dir } = s.sort;
     rows.sort((a, b) => (typeof a[k] === "string" ? a[k].localeCompare(b[k]) : (a[k] ?? -Infinity) - (b[k] ?? -Infinity)) * dir);
@@ -238,10 +251,12 @@ function renderScreens() {
     `<th data-ssk="${k}" class="${s.sort?.k === k ? (s.sort.dir > 0 ? "asc" : "desc") : ""}">${t}</th>`).join("");
   const body = rows.map(r => `<tr><td>${r.rank}</td><td>${stockLink(r.code, r.code)}</td><td class="name">${stockLink(r.code, r.name)}</td><td>${r.market}</td>
     <td>${r.close.toFixed(2)}</td>${pctCell(r.pct)}<td>${num(r.volume)}</td>` +
-    extra.map(([k]) => k === "days" ? `<td>${Math.abs(r.days)} 天</td>` : k === "ppct" ? pctCell(r.ppct) : k === "ratio" ? `<td>${num(r.ratio, 1)}%</td>` : lotCell(r[k])).join("") + "</tr>").join("");
+    extra.map(([k]) => k === "days" ? `<td>${Math.abs(r.days)} 天</td>` : k === "ppct" ? pctCell(r.ppct) : k === "ratio" ? `<td>${num(r.ratio, 1)}%</td>`
+      : k === "n_flip" ? `<td>${r.n_flip} 次</td>` : k === "alt" ? `<td class="${r.alt >= R.flip_days ? "hot5" : ""}">${r.alt ? r.alt + " 天" : "-"}</td>` : lotCell(r[k])).join("") + "</tr>").join("");
   const rule = s.mode === "streak" ? `${scr.cats[s.cat]}每日買賣超至少 1 張且方向相同，連續 ${s.min} 天以上；期間累計與期間漲跌幅以連續的那幾天計算`
     : s.mode === "diverge" ? `${scr.cats[s.cat]}近 ${R.diverge_days} 日累計${s.dir > 0 ? "買超" : "賣超"} ${num(R.diverge_lots)} 張以上，但同期股價${s.dir > 0 ? "沒漲（≤0%）" : "沒跌（≥0%）"}`
-    : `${scr.cats[s.cat]}前一日${s.dir > 0 ? "買超" : "賣超"} ${num(R.flip_lots)} 張以上，今日反向${s.dir > 0 ? "賣超" : "買超"}達前一日的 ${R.flip_ratio * 100}% 以上`;
+    : hot ? `${scr.cats[s.cat]}近 ${R.flip_days} 日沖銷 ${R.hot_min_flips} 次以上，或連續一買一賣（每天 ${num(R.flip_lots)} 張以上、方向逐日相反）${R.hot_min_alt} 天以上；沖銷＝前一日買（賣）超 ${num(R.flip_lots)} 張以上、當日反向達 ${R.flip_ratio * 100}% 以上，第一天以再前一個交易日判斷`
+    : `${md(fv)} ${scr.cats[s.cat]}前一日${s.dir > 0 ? "買超" : "賣超"} ${num(R.flip_lots)} 張以上，當日反向${s.dir > 0 ? "賣超" : "買超"}達前一日的 ${R.flip_ratio * 100}% 以上`;
   return `<h2 class="sec">籌碼篩選（${scr.date}）</h2><div class="sc opt">${ctrl}
     <p class="mute">條件：${rule}；只列當日成交量 ${num(R.min_vol)} 張以上。共 ${rows.length} 檔。</p></div>
     <div class="sc"><table class="ft scr"><thead><tr>${th}</tr></thead><tbody>${body || `<tr><td colspan="${head.length + extra.length}" class="mute">今天沒有符合條件的${s.etf ? " ETF" : "個股"}</td></tr>`}</tbody></table>
@@ -255,6 +270,7 @@ function bindScreens(box) {
   set("[data-sd]", b => { scrState.dir = +b.dataset.sd; });
   set("[data-sn]", b => { scrState.min = +b.dataset.sn; });
   set("[data-se]", b => { scrState.etf = b.dataset.se === "1"; });
+  set("[data-sfv]", b => { scrState.flipView = b.dataset.sfv; });
   box.querySelectorAll("[data-ssk]").forEach(el => el.onclick = () => {
     const k = el.dataset.ssk, cur = scrState.sort;
     scrState.sort = cur?.k === k ? { k, dir: -cur.dir } : { k, dir: ["rank", "code", "name", "market"].includes(k) ? 1 : -1 };
