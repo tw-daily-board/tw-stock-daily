@@ -64,27 +64,24 @@ def fetch_day(get_json, d, gap):
     return {"date": d.isoformat(), "twse": tw, "tpex": tp}
 
 
-def load_days(get_json, trade_date, gap):
-    """trade_date（含）往前 DAYS 個交易日；快取在 data/market/"""
+def load_days(get_json, dates, gap):
+    """dates：交易日清單（新→舊，取自法人快取，不用猜哪天休市）；快取在 data/market/"""
     MARKET_DIR.mkdir(parents=True, exist_ok=True)
-    out, d = [], trade_date
-    for _ in range(25):
-        if len(out) >= DAYS:
-            break
+    out = []
+    for d in dates[:DAYS]:
         p = MARKET_DIR / f"{d:%Y%m%d}.json"
         if p.exists():
             out.append(json.loads(p.read_text()))
-        elif d.weekday() < 5:
-            time.sleep(gap)
-            rec = fetch_day(get_json, d, gap)
-            if rec:
-                p.write_text(json.dumps(rec, ensure_ascii=False))
-                out.append(rec)
-            elif d == trade_date:
-                raise RuntimeError(f"{d} 漲跌家數尚未公布")
-        d -= timedelta(days=1)
+            continue
+        time.sleep(gap)
+        rec = fetch_day(get_json, d, gap)
+        if not rec:
+            raise RuntimeError(f"{d} 漲跌家數抓不到（法人有資料）")
+        p.write_text(json.dumps(rec, ensure_ascii=False))
+        out.append(rec)
+    keep = {f"{d:%Y%m%d}.json" for d in dates[:DAYS]}
     for p in MARKET_DIR.glob("*.json"):
-        if p.stem < out[-1]["date"].replace("-", ""):
+        if p.name not in keep:
             p.unlink()
     return out
 
@@ -119,9 +116,9 @@ def fetch_sector_index(get_json, trade_date):
     return out
 
 
-def build(get_json, trade_date, quotes, industry, gap=3.0):
-    """quotes：上市＋上櫃個股行情（fetch_data 的格式）；industry：上市代號→產業別代碼"""
-    days = load_days(get_json, trade_date, gap)
+def build(get_json, trade_date, quotes, industry, dates, gap=3.0):
+    """quotes：上市＋上櫃個股行情（fetch_data 的格式）；industry：上市代號→產業別代碼；dates：交易日清單（新→舊）"""
+    days = load_days(get_json, dates, gap)
     turnover = fetch_turnover(get_json, trade_date, gap)
     time.sleep(gap)
     sidx = fetch_sector_index(get_json, trade_date)

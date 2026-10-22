@@ -117,3 +117,6 @@ table.sig td.name{text-align:left;white-space:nowrap}
 table.sig td.grpc{color:var(--mute);font-size:13px;white-space:nowrap}
 table.sig th:nth-child(-n+2),table.sig th:last-child{text-align:left}
 table.sig tr.g1 td{border-top:2px solid var(--line)}
+/* 籌碼篩選 */
+table.scr td:nth-child(-n+4),table.scr thead tr:first-child th:nth-child(-n+4){text-align:left}
+table.scr td a.sl{font-weight:inherit}

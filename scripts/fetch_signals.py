@@ -59,27 +59,24 @@ def fetch_chips(get_json, d, gap):
     return {"date": d.isoformat(), "inst": inst, "margin": {"twse": tw, "tpex": tp}}
 
 
-def load_chips(get_json, trade_date, gap):
-    """trade_date（含）往前 DAYS 個交易日；當天融資融券還沒出時丟 MarginNotReady"""
+def load_chips(get_json, dates, gap):
+    """dates：交易日清單（新→舊，取自法人快取，不用猜哪天休市）；當天融資融券還沒出時丟 MarginNotReady"""
     CHIPS_DIR.mkdir(parents=True, exist_ok=True)
-    out, d = [], trade_date
-    for _ in range(25):
-        if len(out) >= DAYS:
-            break
+    out = []
+    for d in dates[:DAYS]:
         p = CHIPS_DIR / f"{d:%Y%m%d}.json"
         if p.exists():
             out.append(json.loads(p.read_text()))
-        elif d.weekday() < 5:
-            time.sleep(gap)
-            rec = fetch_chips(get_json, d, gap)
-            if rec:
-                p.write_text(json.dumps(rec, ensure_ascii=False))
-                out.append(rec)
-            elif d == trade_date:
-                raise MarginNotReady(f"{d} 三大法人金額尚未公布")
-        d -= timedelta(days=1)
+            continue
+        time.sleep(gap)
+        rec = fetch_chips(get_json, d, gap)
+        if not rec:
+            raise MarginNotReady(f"{d} 三大法人金額尚未公布")
+        p.write_text(json.dumps(rec, ensure_ascii=False))
+        out.append(rec)
+    keep = {f"{d:%Y%m%d}.json" for d in dates[:DAYS]}
     for p in CHIPS_DIR.glob("*.json"):
-        if out and p.stem < out[-1]["date"].replace("-", ""):
+        if p.name not in keep:
             p.unlink()
     return out
 
@@ -240,7 +237,7 @@ def build(get_json, out, gap=3.0, wait_minutes=0, warn=print):
     chips, err = None, None
     while True:
         try:
-            chips = load_chips(get_json, trade_date, gap)
+            chips = load_chips(get_json, [date.fromisoformat(x) for x in out["inst_dates"]], gap)
             break
         except MarginNotReady as e:
             if time.time() + 600 < deadline:

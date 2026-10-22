@@ -197,6 +197,82 @@ function renderSignals(s) {
     <p class="fn">每項依固定門檻判讀：外資現貨 ±30 億、投信 ±10 億、騰落 ±200 家、外資台指與十大特定法人變化 ±1,000 口、外資選擇權淨金額 ±0.5 億、P/C 比較前 5 日平均 ±5 個百分點、台積電外資 ±1,000 張、前 20 大權值股外資合計 ±5,000 張；量能放量（20 日量比 ≥1.2）時依漲跌判讀；融資在指數下跌時增加視為偏空、在指數上漲時減少視為偏多。偏多與偏空項數相差 3 項以上才判為偏多或偏空，否則為多空互見。此為規則統計，不是預測，也不構成投資建議。</p></div>`;
 }
 
+// ---- 籌碼篩選：連買連賣、籌碼背離、隔日沖（讀 data/screens.json，第一次打開分頁才載入） ----
+let scr = null, scrState = { mode: "streak", cat: "fi", dir: 1, min: 3, etf: false, sort: null };
+const SCR_MODES = [["streak", "連買連賣"], ["diverge", "籌碼背離"], ["flips", "隔日沖"]];
+const pctCell = v => v == null ? "<td>-</td>" : `<td class="${cls(v)}">${sg(v, 2)}%</td>`;
+const lotCell = v => `<td class="${cls(v)}">${sg(v)}</td>`;
+
+function scrRows() {
+  const s = scrState, list = (scr[s.mode === "streak" ? "streaks" : s.mode][s.cat] || []).filter(r => r.etf === s.etf);
+  if (s.mode === "streak") return list.filter(r => Math.sign(r.days) === s.dir && Math.abs(r.days) >= s.min);
+  if (s.mode === "diverge") return list.filter(r => Math.sign(r.cum) === s.dir);
+  return list.filter(r => Math.sign(r.prev) === s.dir);
+}
+
+function renderScreens() {
+  if (!scr) return '<div class="empty">載入中…</div>';
+  if (scr.error) return `<div class="empty">${scr.error}</div>`;
+  const s = scrState, R = scr.rules;
+  const cats = Object.entries(scr.cats).filter(([k]) => s.mode !== "diverge" || ["fi", "it"].includes(k));
+  if (!cats.some(([k]) => k === s.cat)) s.cat = "fi";
+  const btn = (attr, val, label, on) => `<button ${attr}="${val}" class="${on ? "on" : ""}">${label}</button>`;
+  const dirs = s.mode === "streak" ? [[1, "連買"], [-1, "連賣"]] : s.mode === "diverge" ? [[1, "買超但不漲"], [-1, "賣超但不跌"]] : [[1, "前日買→今日賣"], [-1, "前日賣→今日買"]];
+  const ctrl = `<nav class="optnav">${SCR_MODES.map(([k, t]) => btn("data-sm", k, t, s.mode === k)).join("")}</nav>
+    <nav class="optnav">${cats.map(([k, t]) => btn("data-sc", k, t, s.cat === k)).join("")}</nav>
+    <nav class="optnav">${dirs.map(([v, t]) => btn("data-sd", v, t, s.dir === v)).join("")}
+      ${s.mode === "streak" ? [3, 5].map(n => btn("data-sn", n, `${n} 日以上`, s.min === n)).join("") : ""}
+      ${btn("data-se", 0, "個股", !s.etf)}${btn("data-se", 1, "ETF", s.etf)}</nav>`;
+  const head = ["#", "代號", "名稱", "市場", "收盤價", "漲跌幅", "成交量(張)"];
+  const keys = ["rank", "code", "name", "market", "close", "pct", "volume"];
+  let extra;
+  if (s.mode === "streak") extra = [["days", "連續天數"], ["cum", "期間累計(張)"], ["today", "當日(張)"], ["ppct", "期間漲跌幅"]];
+  else if (s.mode === "diverge") extra = [["cum", `近${R.diverge_days}日累計(張)`], ["today", "當日(張)"], ["ppct", `近${R.diverge_days}日漲跌幅`]];
+  else extra = [["prev", "前日(張)"], ["today", "當日(張)"], ["ratio", "反向比例"]];
+  let rows = scrRows().map((r, i) => ({ ...r, rank: i + 1 }));
+  if (s.sort) {
+    const { k, dir } = s.sort;
+    rows.sort((a, b) => (typeof a[k] === "string" ? a[k].localeCompare(b[k]) : (a[k] ?? -Infinity) - (b[k] ?? -Infinity)) * dir);
+  }
+  const th = [...head.map((t, i) => [keys[i], t]), ...extra].map(([k, t]) =>
+    `<th data-ssk="${k}" class="${s.sort?.k === k ? (s.sort.dir > 0 ? "asc" : "desc") : ""}">${t}</th>`).join("");
+  const body = rows.map(r => `<tr><td>${r.rank}</td><td>${stockLink(r.code, r.code)}</td><td class="name">${stockLink(r.code, r.name)}</td><td>${r.market}</td>
+    <td>${r.close.toFixed(2)}</td>${pctCell(r.pct)}<td>${num(r.volume)}</td>` +
+    extra.map(([k]) => k === "days" ? `<td>${Math.abs(r.days)} 天</td>` : k === "ppct" ? pctCell(r.ppct) : k === "ratio" ? `<td>${num(r.ratio, 1)}%</td>` : lotCell(r[k])).join("") + "</tr>").join("");
+  const rule = s.mode === "streak" ? `${scr.cats[s.cat]}每日買賣超至少 1 張且方向相同，連續 ${s.min} 天以上；期間累計與期間漲跌幅以連續的那幾天計算`
+    : s.mode === "diverge" ? `${scr.cats[s.cat]}近 ${R.diverge_days} 日累計${s.dir > 0 ? "買超" : "賣超"} ${num(R.diverge_lots)} 張以上，但同期股價${s.dir > 0 ? "沒漲（≤0%）" : "沒跌（≥0%）"}`
+    : `${scr.cats[s.cat]}前一日${s.dir > 0 ? "買超" : "賣超"} ${num(R.flip_lots)} 張以上，今日反向${s.dir > 0 ? "賣超" : "買超"}達前一日的 ${R.flip_ratio * 100}% 以上`;
+  return `<h2 class="sec">籌碼篩選（${scr.date}）</h2><div class="sc opt">${ctrl}
+    <p class="mute">條件：${rule}；只列當日成交量 ${num(R.min_vol)} 張以上。共 ${rows.length} 檔。</p></div>
+    <div class="sc"><table class="ft scr"><thead><tr>${th}</tr></thead><tbody>${body || `<tr><td colspan="${head.length + extra.length}" class="mute">今天沒有符合條件的${s.etf ? " ETF" : "個股"}</td></tr>`}</tbody></table>
+    <p class="fn">法人資料為證交所、櫃買中心三大法人買賣超日報（外資含外資自營商）；只能看到法人類別，看不到券商分點，所以「隔日沖」是指這一類法人整體一天買、隔天賣，不是特定分點主力。自營商（避險）多為權證避險，常一天買一天賣，訊號雜訊較大。期間漲跌幅以收盤價計算，未還原除權息。此為規則篩選，不構成投資建議。</p></div>`;
+}
+
+function bindScreens(box) {
+  const set = (sel, fn) => box.querySelectorAll(sel).forEach(b => b.onclick = () => { fn(b); scrState.sort = null; render(); });
+  set("[data-sm]", b => { scrState.mode = b.dataset.sm; });
+  set("[data-sc]", b => { scrState.cat = b.dataset.sc; });
+  set("[data-sd]", b => { scrState.dir = +b.dataset.sd; });
+  set("[data-sn]", b => { scrState.min = +b.dataset.sn; });
+  set("[data-se]", b => { scrState.etf = b.dataset.se === "1"; });
+  box.querySelectorAll("[data-ssk]").forEach(el => el.onclick = () => {
+    const k = el.dataset.ssk, cur = scrState.sort;
+    scrState.sort = cur?.k === k ? { k, dir: -cur.dir } : { k, dir: ["rank", "code", "name", "market"].includes(k) ? 1 : -1 };
+    render();
+  });
+}
+
+let scrLoading = false;
+function loadScreens() {
+  if (scr || scrLoading) return;
+  scrLoading = true;
+  fetch("data/screens.json", { cache: "no-cache" })
+    .then(r => { if (!r.ok) throw 0; return r.json(); })
+    .then(j => { scr = j; })
+    .catch(() => { scr = { error: "籌碼篩選資料尚未產生，之後排程會自動補上。" }; })
+    .finally(() => { if (tab === "scr") render(); });
+}
+
 function renderFut(f) {
   const ix = f.index;
   const mk = [`<tr class="idx"><td class="name">加權指數</td><td>${num(ix.close, 2)}</td><td class="${cls(ix.change)}">${sg(ix.change, 2)}</td><td class="${cls(ix.change)}">${sg(ix.pct, 2)}%</td><td>${num(ix.value_tril, 6)} 兆元</td><td>-</td><td>-</td></tr>`]
@@ -217,9 +293,10 @@ function renderFut(f) {
 function render() {
   const box = document.querySelector(".scroll");
   const cs = cols();
-  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig"].includes(tab);
+  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig", "scr"].includes(tab);
   if (tab === "mkt") { box.innerHTML = renderMarket(data.market_breadth); return; }
   if (tab === "sig") { box.innerHTML = renderSignals(data.signals); return; }
+  if (tab === "scr") { loadScreens(); box.innerHTML = renderScreens(); bindScreens(box); return; }
   if (tab === "opt") {
     box.innerHTML = data.fut ? renderOpt(data.fut.opt, data.fut.pc, data.fut.date) : '<div class="empty">期交所資料尚未公布，之後排程會自動補上。</div>';
     box.querySelectorAll("[data-opt]").forEach(b => b.onclick = () => { optSel = +b.dataset.opt; render(); });

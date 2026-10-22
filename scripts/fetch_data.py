@@ -207,11 +207,18 @@ def fetch_issued_shares():
 
 
 # ---------- 三大法人（外資 / 投信 / 自營商） ----------
-# 每檔存 [外資, 投信, 自營商, 合計]（股）；寫入前檢查 外資+投信+自營商 == 合計
+# 每檔存 [外資, 投信, 自營商, 合計, 自營商(自行買賣), 自營商(避險)]（股）；
+# 寫入前檢查 外資+投信+自營商 == 合計、自行買賣+避險 == 自營商
+INST_FIELDS = 6
+
+
 def check_sum(market, rows):
     bad = sum(1 for v in rows.values() if v[0] + v[1] + v[2] != v[3])
     if bad > max(3, len(rows) * 0.02):
         raise RuntimeError(f"{market} 法人欄位對不上：{bad}/{len(rows)} 檔 外資+投信+自營商≠合計，請檢查欄位定義")
+    bad = sum(1 for v in rows.values() if v[4] + v[5] != v[2])
+    if bad > max(3, len(rows) * 0.02):
+        raise RuntimeError(f"{market} 自營商欄位對不上：{bad}/{len(rows)} 檔 自行買賣+避險≠自營商，請檢查欄位定義")
 
 
 def fetch_twse_inst(d):
@@ -223,10 +230,11 @@ def fetch_twse_inst(d):
     i_for = next(i for i, x in enumerate(f) if x.startswith("外陸資買賣超股數"))
     i_fd = next(i for i, x in enumerate(f) if x.startswith("外資自營商買賣超股數"))
     i_it, i_dl, i_all = f.index("投信買賣超股數"), f.index("自營商買賣超股數"), f.index("三大法人買賣超股數")
+    i_dls, i_dlh = f.index("自營商買賣超股數(自行買賣)"), f.index("自營商買賣超股數(避險)")
     out = {}
     for r in j["data"]:
         g = lambda i: int(num(r[i]) or 0)  # noqa: E731
-        out[r[ci].strip()] = [g(i_for) + g(i_fd), g(i_it), g(i_dl), g(i_all)]
+        out[r[ci].strip()] = [g(i_for) + g(i_fd), g(i_it), g(i_dl), g(i_all), g(i_dls), g(i_dlh)]
     check_sum("上市", out)
     return out
 
@@ -242,7 +250,7 @@ def fetch_tpex_inst(d):
     out = {}
     for r in t["data"]:
         g = lambda i: int(num(r[i]) or 0)  # noqa: E731
-        out[str(r[0]).strip()] = [g(10), g(13), g(22), g(23)]
+        out[str(r[0]).strip()] = [g(10), g(13), g(22), g(23), g(16), g(19)]
     check_sum("上櫃", out)
     return out
 
@@ -267,8 +275,11 @@ def load_inst_history(trade_date):
         if len(days) >= INST_DAYS:
             break
         p = INST_DIR / f"{d:%Y%m%d}.json"
-        if p.exists():
-            days.append((d, json.loads(p.read_text())))
+        cached = json.loads(p.read_text()) if p.exists() else None
+        if cached and len(next(iter(cached.values()))) != INST_FIELDS:
+            cached = None  # 舊格式（自營商未拆自行買賣／避險）就重抓
+        if cached:
+            days.append((d, cached))
         elif d.weekday() < 5:
             time.sleep(REQUEST_GAP)
             data = fetch_inst(d)
@@ -344,10 +355,18 @@ def build():
     fi_buy, fi_sell, fi_total = fi_board(is_common_stock)
     fi_etf_buy, fi_etf_sell, fi_etf_total = fi_board(is_etf)
 
+    # 籌碼篩選（連買連賣、背離、隔日沖）：寫到 data/screens.json；失敗不擋住其他股票資料
+    import fetch_screens
+    try:
+        qdays = fetch_screens.load_quotes(get_json, fetch_tpex_quotes, days, quotes, REQUEST_GAP)
+        fetch_screens.write(fetch_screens.build(days, qdays, quotes, is_etf, is_common_stock, trade_date))
+    except Exception as e:  # noqa: BLE001
+        warn("籌碼篩選未更新", e)
+
     # 市場整體強弱：失敗不擋住其他股票資料
     import fetch_market
     try:
-        market = fetch_market.build(get_json, trade_date, quotes, industry, REQUEST_GAP)
+        market = fetch_market.build(get_json, trade_date, quotes, industry, [d for d, _ in days], REQUEST_GAP)
     except Exception as e:  # noqa: BLE001
         warn("市場強弱資料未更新", e)
         market = None
