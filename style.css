@@ -161,3 +161,91 @@ table.lt tr.vd td{text-align:left;white-space:normal;background:color-mix(in srg
 .ltd thead tr:first-child th{text-align:right;position:static}
 .ltd thead tr:first-child th:first-child{text-align:left}
 .ltd th:first-child,.ltd td:first-child{white-space:nowrap}
+
+/* ===================== 改版 v1：版面、導覽、手機 ===================== */
+header.top{padding-top:18px}
+header.top .bar{display:flex;align-items:center;justify-content:space-between;gap:12px}
+header.top h1{font-size:21px;letter-spacing:.5px}
+header.top .meta{margin:4px 0 12px;font-size:12.5px;line-height:1.6}
+.set{position:relative}
+.set summary{list-style:none;cursor:pointer;font-size:13px;color:var(--mute);border:1px solid var(--line);border-radius:8px;padding:5px 10px;background:var(--card)}
+.set summary::-webkit-details-marker{display:none}
+.set[open] summary{color:var(--fg)}
+.setbox{position:absolute;right:0;top:calc(100% + 6px);z-index:30;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;box-shadow:0 8px 24px rgba(0,0,0,.12);white-space:nowrap;font-size:13px}
+.setbox select{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:3px 6px}
+label.site{display:none}
+
+/* 大類 */
+#groups{display:flex;gap:6px;flex-wrap:nowrap;margin-bottom:10px;overflow-x:auto;scrollbar-width:none}
+#groups::-webkit-scrollbar,#tabs::-webkit-scrollbar{display:none}
+#groups button{display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:10px;font-weight:600;white-space:nowrap}
+#groups button svg{width:17px;height:17px;flex:none}
+/* 子分頁：一行，左右滑 */
+#tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:6px;margin-bottom:10px;padding-bottom:2px}
+#tabs button{white-space:nowrap;font-size:14px;padding:6px 14px;border-radius:999px}
+#tabs button.on{background:color-mix(in srgb,var(--accent) 14%,var(--card));border-color:var(--accent);color:var(--accent);font-weight:600}
+#view{flex-wrap:nowrap;overflow-x:auto}
+#view button{border-radius:999px}
+nav button{min-height:34px}
+main{padding-bottom:24px}
+.scroll{border-radius:12px}
+.note{margin:12px 0 0}
+.foot{color:var(--mute);font-size:12px;margin:10px 0 24px}
+
+/* 今日重點 */
+.home{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin:4px 0 8px}
+.hc{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:12px;padding:14px 16px 30px;background:var(--card);cursor:pointer;min-height:132px;position:relative;transition:border-color .15s,transform .15s}
+.hc:hover,.hc:focus-visible{border-color:var(--accent)}
+.hc:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hc h3{margin:0;font-size:13px;color:var(--mute);font-weight:600}
+.hc .big{font-size:26px;line-height:1.2;margin:2px 0}
+.hc .more{position:absolute;right:14px;bottom:10px;font-size:12px;color:var(--accent)}
+.hc .mute{padding-right:60px}
+.hc .ratio{margin:6px 0 2px}
+.t3{margin:4px 0 0;padding-left:20px;font-variant-numeric:tabular-nums}
+.t3 li{display:flex;justify-content:space-between;gap:12px;line-height:1.8}
+
+/* 表格：名稱欄固定在左邊，左右滑也看得到是哪一檔 */
+td.name{position:sticky;left:0;z-index:1;background:var(--card)}
+th[data-k="name"],th[data-ssk="name"],th[data-vsk="name"],th[data-dsk="name"],th[data-lsk="name"]{position:sticky;left:0;z-index:3;background:var(--card)}
+tbody tr:hover td.name{background:color-mix(in srgb,var(--accent) 7%,var(--card))}
+tr.tot td.name,tr.idx td.name{background:color-mix(in srgb,var(--accent) 4%,var(--card))}
+
+/* 手機 */
+@media (max-width:760px){
+  body{font-size:14px;padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+  header,nav,main{padding:0 12px}
+  header.top{padding-top:12px}
+  header.top h1{font-size:18px}
+  header.top .meta{font-size:11.5px;margin-bottom:8px}
+  /* 大類固定在底部，大拇指點得到 */
+  #groups{position:fixed;left:0;right:0;bottom:0;z-index:40;margin:0;padding:6px 6px calc(6px + env(safe-area-inset-bottom));gap:2px;
+    background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--line);
+    justify-content:space-around;max-width:none}
+  #groups button{flex:1 1 0;flex-direction:column;gap:2px;padding:6px 2px;border:0;background:none;color:var(--mute);font-size:12px;border-radius:8px;min-height:48px}
+  #groups button svg{width:22px;height:22px}
+  #groups button.on{background:none;color:var(--accent)}
+  /* 子分頁黏在頂端 */
+  #tabs{position:sticky;top:0;z-index:20;background:var(--bg);margin:0 0 8px;padding:8px 12px}
+  #tabs button{font-size:14px;padding:7px 14px}
+  .scroll{border-radius:10px}
+  th,td{padding:8px 8px}
+  table{font-size:13px}
+  .sec{font-size:14px;padding:10px 12px 6px}
+  .opt{padding:0 12px 8px}
+  .home{grid-template-columns:1fr 1fr;gap:8px}
+  .hc{min-height:118px;padding:12px}
+  .hc .big{font-size:20px}
+  .hc .more{display:none}
+  .hc .mute{padding-right:0}
+  .optnav button{font-size:13px;padding:6px 11px}
+  .fn{margin:6px 12px 12px}
+}
+@media (max-width:380px){ .home{grid-template-columns:1fr} }
+/* 可收合的條件說明 */
+details.cond{margin:2px 0 8px;font-size:13px}
+details.cond summary{cursor:pointer;color:var(--fg);padding:4px 0;list-style:none}
+details.cond summary::-webkit-details-marker{display:none}
+details.cond summary::after{content:" ▸";color:var(--accent)}
+details.cond[open] summary::after{content:" ▾"}
+details.cond p{margin:4px 0 0}

@@ -39,7 +39,7 @@ let site = "yahoo";
 try { const v = localStorage.getItem("site"); if (v in SITES) site = v; } catch (e) { /* 無痕模式等情況下略過 */ }
 const stockLink = (code, txt) => `<a class="sl" href="${SITES[site][1](encodeURIComponent(code))}" target="_blank" rel="noopener noreferrer">${txt}</a>`;
 
-let data = null, tab = "cap", view = "fi", sort = null;
+let data = null, tab = "home", view = "fi", sort = null;
 
 function cols() {
   if (isFi(tab)) {
@@ -358,7 +358,8 @@ function renderValue() {
   return `<h2 class="sec">營收 × 估值 × 股價落後（${val.date}）</h2><div class="sc opt">
     <p class="mute">營收月份 ${ym}（已累積 ${months} 個月）・估值與股價 ${val.date}・加權指數近 60 日 ${sg(val.index_ret60, 2)}%（自 ${val.index_from}）</p>
     <nav class="optnav">${conds}</nav><nav class="optnav">${mk}</nav>
-    <p class="mute">已選條件：${VAL_CONDS.filter(([k]) => s.on[k] && avail(k)).map(([k]) => desc[k]).join("；") || "無（列出全部）"}。共 ${rows.length} 檔。</p></div>
+    <details class="cond"><summary>共 <b>${rows.length}</b> 檔・條件說明</summary>
+    <p class="mute">已選條件：${VAL_CONDS.filter(([k]) => s.on[k] && avail(k)).map(([k]) => desc[k]).join("；") || "無（列出全部）"}。點 ▸ 或「註」看細節。</p></details></div>
     <div class="sc"><table class="ft scr val"><thead><tr>${th}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length}" class="mute">沒有同時符合這些條件的個股，可以取消部分條件</td></tr>`}</tbody></table>
     <p class="fn">只列上市櫃普通股；排除近 20 日均量不到 ${num(R.min_avg_vol)} 張、去年同月營收不到 ${R.min_rev_ly} 億的公司。本益比以近四季獲利計算，虧損公司沒有本益比，不會通過「估值偏低」；同業本益比為同產業（營收表的產業別）有本益比公司的中位數。分數 0～100：年增率越高、本益比越低、近 60 日相對大盤越落後，分數越高，三項各占三分之一。點每列最前面的 ▸ 或名稱旁的「註」可展開細節：營收備註（常是報價、併購、一次性收入等原因，請自行判斷）、市場、月增、淨值比、成交量。尚未排除全額交割股與處置股。營收要到 3 個月、12 個月後才能使用「連續 3 個月年增」「營收創 12 個月新高」。此為規則篩選，不構成投資建議。</p></div>`;
 }
@@ -494,7 +495,8 @@ function renderLongterm() {
     <nav class="optnav">${LT_CONDS.map(([k, t]) => btn("data-lc", k, t, s.on[k], desc[k])).join("")}</nav>
     <nav class="optnav">${btn("data-lai", 1, "排除 AI／電子產業", s.noai, ltd.ai_industries.join("、") + "（電信業者" + (ltd.telecom || []).join("、") + "除外）")}
       ${[["", "上市＋上櫃"], ["上市", "上市"], ["上櫃", "上櫃"]].map(([v, t]) => btn("data-lk", v, t, s.market === v)).join("")}</nav>
-    <p class="mute">已選條件：${[...LT_CONDS.filter(([k]) => s.on[k]).map(([k]) => desc[k]), s.noai ? "排除 " + ltd.ai_industries.join("、") + "（電信業者" + (ltd.telecom || []).join("、") + "除外）" : ""].filter(Boolean).join("；") || "無"}。共 ${rows.length} 檔${rows.length > 200 ? "（顯示前 200 檔）" : ""}，預設依預估報酬排序；點 ▸ 看 5 年逐年數字。</p></div>
+    <details class="cond"><summary>共 <b>${rows.length}</b> 檔${rows.length > 200 ? "（顯示前 200 檔）" : ""}・條件說明</summary>
+    <p class="mute">已選條件：${[...LT_CONDS.filter(([k]) => s.on[k]).map(([k]) => desc[k]), s.noai ? "排除 " + ltd.ai_industries.join("、") + "（電信業者" + (ltd.telecom || []).join("、") + "除外）" : ""].filter(Boolean).join("；") || "無"}。預設依預估報酬排序；點 ▸ 看 5 年逐年數字。</p></details></div>
     <div class="sc"><table class="ft scr lt"><thead><tr>${th}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length}" class="mute">沒有同時符合這些條件的個股，可以取消部分條件</td></tr>`}</tbody></table>
     <p class="fn">資料由證交所、櫃買中心每月的本益比、殖利率、股價淨值比反推（每月取 15 日起第一個交易日）：近四季 EPS＝收盤價÷本益比、現金股利＝收盤價×殖利率（上櫃直接用每股股利）、每股淨值＝收盤價÷淨值比、ROE≈近四季 EPS÷每股淨值。年度點為「目前」與 1～5 年前同月份。EPS 年化成長＝目前與 5 年前近四季 EPS 的年化成長率；預估報酬＝目前殖利率＋EPS 年化成長，是粗估，不代表未來報酬。虧損時本益比為「-」，該年只能標示虧損。產業別取自營收表。只列上市櫃普通股、近 20 日均量 ${R.min_avg_vol} 張以上、上市滿 5 年的公司。此為規則篩選，不構成投資建議。</p></div>`;
 }
@@ -533,6 +535,13 @@ function renderFut(f) {
 function render() {
   const box = document.querySelector(".scroll");
   const cs = cols();
+  document.getElementById("note").hidden = !(["cap", "stocks", "etfs"].includes(tab) || isFi(tab));
+  if (tab === "home") {
+    document.getElementById("view").hidden = true;
+    box.innerHTML = renderHome();
+    box.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
+    return;
+  }
   document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig", "scr", "val", "dt", "lt"].includes(tab);
   if (tab === "mkt") { box.innerHTML = renderMarket(data.market_breadth); return; }
   if (tab === "sig") { box.innerHTML = renderSignals(data.signals); return; }
@@ -571,17 +580,89 @@ siteSel.onchange = () => {
   if (data) render();
 };
 
-document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => {
-  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
-  tab = b.dataset.t; sort = null;
-  if (data) render();
-});
+// ---- 導覽：6 大類 × 子分頁；網址 #分頁 會記住目前位置（重新整理、分享、返回鍵都可用） ----
+// 圖示用內嵌 SVG（文字符號在不同手機上長得不一樣）
+const ICON = p => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const GROUPS = [
+  ["home", "總覽", ICON('<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>'), [["home", "今日重點"], ["sig", "綜合訊號"]]],
+  ["mkt", "大盤", ICON('<path d="M3 20h18"/><path d="M4 16l5-5 4 3 7-8"/>'), [["mkt", "市場強弱"]]],
+  ["fo", "期權", ICON('<path d="M7 20V5"/><path d="M3 9l4-4 4 4"/><path d="M17 4v15"/><path d="M13 15l4 4 4-4"/>'), [["fut", "台指期"], ["opt", "選擇權支撐壓力"]]],
+  ["chip", "籌碼", ICON('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>'), [["cap", "權值股"], ["stocks", "熱門個股"], ["etfs", "熱門 ETF"], ["fi", "外資買賣超"], ["fi_etf", "ETF 外資"], ["scr", "籌碼篩選"]]],
+  ["pick", "選股", ICON('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>'), [["val", "營收估值"], ["lt", "長期體質"]]],
+  ["dt", "當沖", ICON('<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>'), [["dt", "當沖觀察"]]],
+];
+const groupOf = t => GROUPS.find(g => g[3].some(([k]) => k === t)) || GROUPS[0];
+
+function drawNav() {
+  const g = groupOf(tab);
+  document.getElementById("groups").innerHTML = GROUPS.map(([k, t, ic, subs]) =>
+    `<button data-g="${k}" class="${g[0] === k ? "on" : ""}" aria-current="${g[0] === k ? "page" : "false"}">${ic}<span>${t}</span></button>`).join("");
+  const tabs = document.getElementById("tabs");
+  tabs.hidden = g[3].length < 2;
+  tabs.innerHTML = g[3].map(([k, t]) => `<button data-t="${k}" class="${tab === k ? "on" : ""}">${t}</button>`).join("");
+  document.querySelectorAll("#groups button").forEach(b => b.onclick = () => go(GROUPS.find(x => x[0] === b.dataset.g)[3][0][0]));
+  document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => go(b.dataset.t));
+  tabs.querySelector(".on")?.scrollIntoView({ block: "nearest", inline: "center" });
+}
+
+function go(t, push = true) {
+  if (!GROUPS.some(g => g[3].some(([k]) => k === t))) t = "home";
+  tab = t; sort = null;
+  if (push && location.hash.slice(1) !== t) history.pushState(null, "", "#" + t);
+  drawNav();
+  if (data) { render(); window.scrollTo({ top: 0 }); }
+}
+window.addEventListener("popstate", () => go(location.hash.slice(1) || "home", false));
 
 document.querySelectorAll("#view button").forEach(b => b.onclick = () => {
   document.querySelectorAll("#view button").forEach(x => x.classList.toggle("on", x === b));
   view = b.dataset.v; sort = null;
   if (data) render();
 });
+
+// ---- 今日重點：每張卡片點下去到對應分頁 ----
+function renderHome() {
+  const d = data, mb = d.market_breadth, f = d.fut, s = d.signals;
+  const card = (to, title, body, sub = "") => `<button class="hc" data-go="${to}"><h3>${title}</h3>${body}${sub ? `<p class="mute">${sub}</p>` : ""}<span class="more">看詳細 ›</span></button>`;
+  const big = (v, cl = "") => `<p class="big ${cl}">${v}</p>`;
+  const item = name => (s?.items || []).find(i => i.name.startsWith(name));
+  const cards = [];
+  if (s) {
+    const { bull, bear, neutral, verdict } = s.score, tot = bull + bear + neutral || 1;
+    cards.push(card("sig", "綜合判讀", big(verdict, verdict === "偏多" ? "up" : verdict === "偏空" ? "down" : "") +
+      `<div class="ratio"><i class="u" style="width:${bull / tot * 100}%"></i><i class="f" style="width:${neutral / tot * 100}%"></i><i class="d" style="width:${bear / tot * 100}%"></i></div>`,
+      `偏多 ${bull}・偏空 ${bear}・中性 ${neutral}（${s.items.length} 項規則）`));
+  }
+  if (mb) {
+    const x = mb.twse, pct = x.change / (x.index - x.change) * 100;
+    cards.push(card("mkt", "加權指數", big(num(x.index, 2)) + `<p class="${cls(x.change)}">${sg(x.change, 2)}（${sg(pct, 2)}%）</p>`,
+      `成交 ${num(x.value, 0)} 億・20 日量比 ${mb.ratio20 == null ? "-" : num(mb.ratio20, 2) + " 倍"}`));
+    const t = mb.trend[mb.trend.length - 1];
+    cards.push(card("mkt", "漲跌家數（上市＋上櫃）", `<p class="bd"><span class="up">上漲 ${num(t.up)}</span><span class="down">下跌 ${num(t.down)}</span></p>` +
+      `<div class="ratio"><i class="u" style="width:${t.up / (t.up + t.down) * 100}%"></i><i class="d" style="width:${t.down / (t.up + t.down) * 100}%"></i></div>`,
+      `騰落 ${sg(t.net)}・近 10 日累計 ${sg(t.adl)}`));
+  }
+  const fi = item("外資現貨");
+  if (fi) cards.push(card("fi", "外資現貨（上市）", big(fi.value, fi.value.startsWith("-") ? "down" : "up"), fi.detail));
+  if (f) {
+    const x = f.inst.find(r => r.name === "外資");
+    cards.push(card("fut", "外資台指期淨未平倉", big(sg(x.fut) + " 口", cls(x.fut)), `較前日 ${sg(x.fut_d)} 口・資料 ${f.date}`));
+    const r = f.retail?.rows.find(z => z.code === "MTX");
+    if (r) cards.push(card("fut", "小台散戶多空比", big(sg(r.ratio, 2) + "%", cls(r.ratio)), `較前日 ${sg(r.ratio_d, 2)} 個百分點・散戶淨 ${sg(r.net)} 口`));
+    const o = f.opt?.series?.[0];
+    if (o) cards.push(card("opt", `最近結算 ${o.label}`,
+      `<p class="bd"><span>壓力 <b>${o.resist[0] ? num(o.resist[0].strike) : "-"}</b></span><span>支撐 <b>${o.support[0] ? num(o.support[0].strike) : "-"}</b></span></p>`,
+      `加權 ${num(f.opt.ref, 0)}・此系列 P/C ${o.pc == null ? "-" : num(o.pc, 1) + "%"}`));
+  }
+  const top3 = (rows, t) => rows.slice(0, 3).map(r => `<li><span>${r.name}</span><b class="${cls(r.fi_today)}">${sg(r.fi_today)}</b></li>`).join("") || `<li class="mute">${t}</li>`;
+  cards.push(card("fi", "外資買超前 3 名（張）", `<ol class="t3">${top3(d.fi_buy, "無")}</ol>`));
+  cards.push(card("fi", "外資賣超前 3 名（張）", `<ol class="t3">${top3(d.fi_sell, "無")}</ol>`));
+  return `<h2 class="sec">今日重點（股票 ${d.date}${f ? `・期貨 ${f.date}` : ""}）</h2><div class="sc opt"><div class="home">${cards.join("")}</div>
+    <p class="fn">點卡片看詳細資料。綜合判讀依固定規則統計各項訊號，不是預測，也不構成投資建議。</p></div>`;
+}
+
+tab = location.hash.slice(1) || "home";
+drawNav();
 
 fetch("data/latest.json", { cache: "no-cache" })
   .then(r => { if (!r.ok) throw 0; return r.json(); })
@@ -594,7 +675,7 @@ fetch("data/latest.json", { cache: "no-cache" })
     const behind = j.fut && j.fut.date > j.date;
     document.getElementById("meta").innerHTML = meta +
       (behind ? `<br><span class="behind">股票盤後資料尚未公布，目前顯示前一交易日（${j.date}）；期貨已更新至 ${j.fut.date}</span>` : "");
-    render();
+    go(location.hash.slice(1) || "home", false);
   })
   .catch(() => {
     document.getElementById("meta").textContent = "";
