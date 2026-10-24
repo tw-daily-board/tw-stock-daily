@@ -92,10 +92,13 @@ def day_rows(path, params, d, what, tries=3):
 
 # ---------- 收盤行情 ----------
 def parse_quotes(d):
-    out = {}
+    """回傳 (各契約各月份行情, 各契約全市場未平倉＝所有月份＋週契約的一般盤未沖銷契約數，不含價差單)"""
+    out, oi_total = {}, {}
     for code in [c for _, c, _ in QUOTE_ROWS]:
         rows = day_rows("futDataDown", f"down_type=1&commodity_id={code}&commodity_id2=&{rng(d)}", d, f"{code} 行情")
         months = {}
+        oi_total[code] = sum(int(fnum(r["未沖銷契約數"]) or 0) for r in rows
+                             if r["契約"] == code and r["交易時段"] == "一般" and "/" not in r["到期月份(週別)"])
         for r in rows:
             m = r["到期月份(週別)"]
             if r["契約"] != code or not m.isdigit() or len(m) != 6:
@@ -109,11 +112,15 @@ def parse_quotes(d):
                 if last is not None and chg is not None:
                     q["ref"] = round(last - chg, 4)                      # 前一日結算價
         out[code] = months
-    return out
+    return out, oi_total
 
 
 # ---------- 三大法人 ----------
+RETAIL = [("TX", "臺股期貨", "台指（TXF）"), ("MTX", "小型臺指期貨", "小台（MXF）"), ("TMF", "微型臺指期貨", "微台（TMF）")]
+
+
 def parse_inst(d):
+    """回傳 (三大法人台指期與台指選擇權淨部位, 三大法人合計在 TX/MTX/TMF 的多空未平倉與多空交易口數)"""
     fut = day_rows("futContractsDateDown", rng(d), d, "三大法人期貨")
     opt = day_rows("callsAndPutsDateDown", rng(d) + "&commodityId=TXO", d, "三大法人選擇權")
     out = {k: {} for k in INST_NAMES.values()}
@@ -128,7 +135,14 @@ def parse_inst(d):
     for k, v in out.items():
         if len(v) != 5:
             raise RuntimeError(f"三大法人 {k} 欄位不全：{v}")
-    return out
+    inst_fut = {}
+    for code, name, _ in RETAIL:
+        rs = [r for r in fut if r["商品名稱"] == name and r["身份別"] in INST_NAMES]
+        if len(rs) != 3:
+            raise RuntimeError(f"三大法人 {name} 應有 3 種身份別，實際 {len(rs)} 筆")
+        g = lambda k: sum(int(fnum(r[k])) for r in rs)  # noqa: E731
+        inst_fut[code] = {"L": g("多方未平倉口數"), "S": g("空方未平倉口數"), "TL": g("多方交易口數"), "TS": g("空方交易口數")}
+    return out, inst_fut
 
 
 # ---------- 十大交易人 ----------
@@ -240,7 +254,10 @@ def fetch_cash(get_json, d):
 
 # ---------- 快照與組表 ----------
 def snapshot(d):
-    return {"date": d.isoformat(), "quotes": parse_quotes(d), "inst": parse_inst(d), "large": parse_large(d), "opt": parse_opt(d)}
+    quotes, oi_total = parse_quotes(d)
+    inst, inst_fut = parse_inst(d)
+    return {"date": d.isoformat(), "quotes": quotes, "oi_total": oi_total, "inst": inst, "inst_fut": inst_fut,
+            "large": parse_large(d), "opt": parse_opt(d)}
 
 
 def load_snapshot(d):
@@ -248,7 +265,7 @@ def load_snapshot(d):
     p = FUT_DIR / f"{d:%Y%m%d}.json"
     if p.exists():
         snap = json.loads(p.read_text())
-        if "opt" in snap:  # 舊版快照沒有選擇權資料就重抓
+        if "opt" in snap and "inst_fut" in snap:  # 舊版快照缺選擇權或散戶計算所需欄位就重抓
             return snap
     snap = snapshot(d)
     FUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -275,12 +292,43 @@ def build(get_json, trade_date: date, gap=3.0):
     prev = previous_snapshot(trade_date)
     for p in sorted(FUT_DIR.glob("*.json"))[:-KEEP_SNAPSHOTS]:
         p.unlink()
+    # 散戶多空比近幾日走勢：用 data/fut/ 裡保留的快照（舊版快照會自動重抓補欄位）
+    trend = []
+    for p in sorted(FUT_DIR.glob("*.json")):
+        d = date.fromisoformat(f"{p.stem[:4]}-{p.stem[4:6]}-{p.stem[6:]}")
+        if d <= trade_date:
+            trend.append(retail_rows(load_snapshot(d)))
     time.sleep(gap)
     cash, idx = fetch_cash(get_json, trade_date)
     out = compose(snap, prev, cash, idx)
+    out["retail"] = retail_view(snap, prev, trend)
     out["opt"] = opt_view(snap, prev, idx["close"])
     out["pc"] = fetch_pc(trade_date)
     return out
+
+
+# ---------- 散戶多空比（坊間算法） ----------
+# 散戶多單＝全市場未平倉－三大法人多單；散戶空單＝全市場未平倉－三大法人空單；
+# 散戶多空比＝(散戶多單－散戶空單)÷全市場未平倉×100%；散戶當日交易淨口數＝三大法人空方交易－多方交易
+def retail_rows(snap):
+    rows = {}
+    for code, _, label in RETAIL:
+        oi, src = snap["oi_total"][code], snap["inst_fut"][code]
+        rl, rs = oi - src["L"], oi - src["S"]
+        rows[code] = {"label": label, "oi": oi, "long": rl, "short": rs, "net": rl - rs,
+                      "ratio": round((rl - rs) / oi * 100, 2) if oi else None, "trade_net": src["TS"] - src["TL"]}
+    return {"date": snap["date"], "rows": rows}
+
+
+def retail_view(snap, prev, trend):
+    cur, old = retail_rows(snap), retail_rows(prev) if prev and "inst_fut" in prev else None
+    rows = []
+    for code, _, _ in RETAIL:
+        r, o = cur["rows"][code], (old or {}).get("rows", {}).get(code)
+        rows.append({**r, "code": code, "net_d": None if not o else r["net"] - o["net"],
+                     "ratio_d": None if not o or r["ratio"] is None or o["ratio"] is None else round(r["ratio"] - o["ratio"], 2)})
+    return {"date": snap["date"], "rows": rows,
+            "trend": [{"date": t["date"], **{c: t["rows"][c]["ratio"] for c, _, _ in RETAIL}} for t in trend]}
 
 
 def delta(cur, old):

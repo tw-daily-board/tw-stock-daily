@@ -446,6 +446,19 @@ def is_trading_day(d):
     return d.isoformat() not in off
 
 
+def market_closed(d):
+    """臨時休市（颱風等，不在假日表上）：證交所大盤統計與期交所台指期行情都沒有當天資料"""
+    import fetch_fut
+    j = get_json(f"https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date={d:%Y%m%d}&type=MS&response=json")
+    if j.get("stat") == "OK" and j.get("tables"):
+        return False
+    try:
+        fetch_fut.day_rows("futDataDown", f"down_type=1&commodity_id=TX&commodity_id2=&{fetch_fut.rng(d)}", d, "TX 行情")
+        return False
+    except fetch_fut.NotPublished:
+        return True
+
+
 def check_required(require, out, today):
     """排程負責的資料最後還是沒有今天的，就回傳錯誤訊息（流程會失敗並顯示在 Annotations）"""
     t = today.isoformat()
@@ -512,6 +525,9 @@ def main():
     print(f"OK {out['date']}{'' if fresh else '（沿用舊股票資料）'} fut={out['fut'] and out['fut']['date']}")
     # 已抓到的資料照常寫入（workflow 仍會提交與部署），但排程負責的資料缺了就讓流程失敗
     errs = check_required(require, out, today)
+    if errs and market_closed(today):
+        print(f"::notice title=臨時休市::{today} 證交所與期交所都沒有資料，判定為臨時休市（不在假日表上），不視為錯誤")
+        return
     if errs:
         raise RuntimeError("；".join(errs))
 
