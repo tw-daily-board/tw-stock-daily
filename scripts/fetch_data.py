@@ -380,6 +380,7 @@ def build():
         warn("籌碼篩選未更新", e)
 
     # 營收 × 估值 × 股價落後：寫到 data/value.json
+    revenue, rev_ym, valuation = None, None, None
     try:
         if qall is None:
             raise RuntimeError("沒有歷史行情")
@@ -389,6 +390,16 @@ def build():
         fetch_value.write(fetch_value.build(trade_date, quotes, days, qall, turnover, revenue, rev_ym, valuation, is_common_stock))
     except Exception as e:  # noqa: BLE001
         warn("營收估值篩選未更新", e)
+
+    # 長期體質（由每月估值歷史反推 5 年 EPS、股利、ROE）：寫到 data/longterm.json
+    import fetch_longterm
+    try:
+        if valuation is None or revenue is None:
+            raise RuntimeError("沒有今日估值或營收資料")
+        hist = fetch_longterm.load_history(get_json, fetch_tpex_quotes, trade_date, REQUEST_GAP, warn)
+        fetch_longterm.write(fetch_longterm.build(trade_date, quotes, qall, valuation, revenue[rev_ym], hist, is_common_stock))
+    except Exception as e:  # noqa: BLE001
+        warn("長期體質篩選未更新", e)
 
     # 當沖觀察（當沖量值、振幅、注意／處置／暫停先賣後買）：寫到 data/daytrade.json
     import fetch_daytrade
@@ -521,6 +532,12 @@ def check_required(require, out, today):
             dd = None
         if dd != t:
             errs.append(f"當沖觀察資料仍是 {dd}，沒有 {t}")
+        try:
+            ld = json.loads((DATA / "longterm.json").read_text()).get("date")
+        except (OSError, ValueError):
+            ld = None
+        if ld != t:
+            errs.append(f"長期體質篩選資料仍是 {ld}，沒有 {t}")
     if "margin" in require and (out.get("signals") or {}).get("chips_date") != t:
         errs.append(f"融資融券仍是 {(out.get('signals') or {}).get('chips_date')}，沒有 {t}")
     return errs

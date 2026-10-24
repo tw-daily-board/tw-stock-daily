@@ -149,3 +149,15 @@ table.dtt tr.vd td{text-align:left;white-space:normal;background:color-mix(in sr
 table.dtt tr.vd p{margin:0;position:sticky;left:12px;max-width:min(820px,calc(100vw - 80px));line-height:1.7}
 table.dtt td span.fg{display:inline-block}
 table.dtt td.fgs,table.dtt thead tr:first-child th:last-child{text-align:left}
+/* 長期體質 */
+table.lt td:nth-child(4),table.lt thead tr:first-child th:nth-child(4){text-align:left;white-space:nowrap}
+table.lt th,table.lt td{padding:9px 8px}
+table.lt tr.vo td{border-bottom:0}
+table.lt tr.vd td{text-align:left;white-space:normal;background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.ltd{position:sticky;left:12px;max-width:min(820px,calc(100vw - 80px));overflow-x:auto}
+.ltd table{min-width:0;width:auto;font-size:13px}
+.ltd th,.ltd td{padding:4px 10px;text-align:right;border-bottom:1px solid var(--line)}
+.ltd th:first-child,.ltd td:first-child{text-align:left;color:var(--mute)}
+.ltd thead tr:first-child th{text-align:right;position:static}
+.ltd thead tr:first-child th:first-child{text-align:left}
+.ltd th:first-child,.ltd td:first-child{white-space:nowrap}

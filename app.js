@@ -443,6 +443,75 @@ function bindDaytrade(box) {
   });
 }
 
+// ---- 長期體質（讀 data/longterm.json，第一次打開分頁才載入） ----
+let ltd = null, ltLoading = false;
+const ltState = { on: { c_roe: true, c_eps: true, c_div: true, c_expect: true, c_cheap: false }, noai: true, market: "", sort: null, open: new Set() };
+const LT_CONDS = [["c_roe", "ROE 穩定"], ["c_eps", "獲利成長"], ["c_div", "連續配息"], ["c_expect", "預估報酬 ≥ 門檻"], ["c_cheap", "本益比低於 5 年中位數"]];
+
+function loadLongterm() {
+  if (ltd || ltLoading) return;
+  ltLoading = true;
+  fetch("data/longterm.json", { cache: "no-cache" })
+    .then(r => { if (!r.ok) throw 0; return r.json(); })
+    .then(j => { ltd = j; })
+    .catch(() => { ltd = { error: "長期體質資料尚未產生，之後排程會自動補上。" }; })
+    .finally(() => { if (tab === "lt") render(); });
+}
+
+function renderLongterm() {
+  if (!ltd) return '<div class="empty">載入中…</div>';
+  if (ltd.error) return `<div class="empty">${ltd.error}</div>`;
+  const s = ltState, R = ltd.rules;
+  const desc = {
+    c_roe: `近 ${R.years} 年每個年度點的 ROE 都 ≥ ${R.roe_min}%`, c_eps: `近 ${R.years} 年都沒有虧損，且 EPS 年化成長 > 0`,
+    c_div: `近 ${R.years} 年每年都有配現金股利`, c_expect: `殖利率＋EPS 年化成長 ≥ ${R.expect_min}%`, c_cheap: "目前本益比低於自己近 5 年的中位數",
+  };
+  const btn = (attr, v, t, on, title = "") => `<button ${attr}="${v}" class="${on ? "on" : ""}" title="${title}">${t}</button>`;
+  let rows = ltd.rows.filter(r => LT_CONDS.every(([k]) => !s.on[k] || r[k]) && (!s.noai || !r.ai) && (!s.market || r.market === s.market));
+  if (s.sort) {
+    const { k, dir } = s.sort;
+    rows = rows.slice().sort((a, b) => (typeof a[k] === "string" ? a[k].localeCompare(b[k]) : (a[k] ?? -Infinity) - (b[k] ?? -Infinity)) * dir);
+  }
+  const cols = [["rank", "#"], ["code", "代號"], ["name", "名稱"], ["industry", "產業"], ["close", "收盤價"], ["dy", "殖利率"], ["eps_cagr", "EPS 年化成長"],
+    ["expect", "預估報酬"], ["roe_min", "5 年最低 ROE"], ["roe_now", "目前 ROE"], ["per", "本益比"], ["per_med5", "5 年本益比中位數"]];
+  const th = cols.map(([k, t]) => `<th data-lsk="${k}" class="${s.sort?.k === k ? (s.sort.dir > 0 ? "asc" : "desc") : ""}">${t}</th>`).join("");
+  const p2 = v => v == null ? "<td>-</td>" : `<td class="${cls(v)}">${sg(v, 2)}%</td>`;
+  const pl = v => v == null ? "<td>-</td>" : `<td>${num(v, 2)}%</td>`;
+  const ym = x => `${x.slice(0, 4)}/${x.slice(4)}`;
+  const detail = r => `<tr class="vd"><td colspan="${cols.length}"><div class="ltd"><table><thead><tr><th>時點</th>${r.years.map((y, i) => `<th>${i ? ym(y.ym) : "目前"}</th>`).join("")}</tr></thead><tbody>
+    <tr><td>近四季 EPS</td>${r.years.map(y => `<td>${y.eps == null ? "虧損/無" : num(y.eps, 2)}</td>`).join("")}</tr>
+    <tr><td>現金股利</td>${r.years.map(y => `<td>${y.dps == null ? "-" : num(y.dps, 2)}</td>`).join("")}</tr>
+    <tr><td>ROE</td>${r.years.map(y => `<td>${y.roe == null ? "-" : num(y.roe, 1) + "%"}</td>`).join("")}</tr></tbody></table>
+    <p class="mute">市場 ${r.market}・股價淨值比 ${r.pb == null ? "-" : num(r.pb, 2)}。由每月本益比、殖利率、淨值比反推的近似值，不是財報原始數字。</p></div></td></tr>`;
+  const body = rows.slice(0, 200).map((r, i) => {
+    const open = s.open.has(r.code);
+    return `<tr class="${open ? "vo" : ""}"><td><button class="vt" data-lt="${r.code}" aria-expanded="${open}">${open ? "▾" : "▸"}</button>${i + 1}</td><td>${stockLink(r.code, r.code)}</td>
+      <td class="name">${stockLink(r.code, r.name)}</td><td>${r.industry}</td><td>${r.close.toFixed(2)}</td>${pl(r.dy)}${p2(r.eps_cagr)}<td><b>${r.expect == null ? "-" : sg(r.expect, 2) + "%"}</b></td>
+      ${pl(r.roe_min)}${pl(r.roe_now)}<td>${r.per == null ? "-" : num(r.per, 2)}</td><td>${r.per_med5 == null ? "-" : num(r.per_med5, 2)}</td></tr>` + (open ? detail(r) : "");
+  }).join("");
+  const partial = ltd.months < ltd.need_months ? `<p class="behind">估值歷史已回補 ${ltd.months}／${ltd.need_months} 個月，缺月份的個股暫時不會出現，之後排程會繼續補。</p>` : "";
+  return `<h2 class="sec">長期體質篩選（${ltd.date}）</h2><div class="sc opt">${partial}
+    <nav class="optnav">${LT_CONDS.map(([k, t]) => btn("data-lc", k, t, s.on[k], desc[k])).join("")}</nav>
+    <nav class="optnav">${btn("data-lai", 1, "排除 AI／電子產業", s.noai, ltd.ai_industries.join("、") + "（電信業者" + (ltd.telecom || []).join("、") + "除外）")}
+      ${[["", "上市＋上櫃"], ["上市", "上市"], ["上櫃", "上櫃"]].map(([v, t]) => btn("data-lk", v, t, s.market === v)).join("")}</nav>
+    <p class="mute">已選條件：${[...LT_CONDS.filter(([k]) => s.on[k]).map(([k]) => desc[k]), s.noai ? "排除 " + ltd.ai_industries.join("、") + "（電信業者" + (ltd.telecom || []).join("、") + "除外）" : ""].filter(Boolean).join("；") || "無"}。共 ${rows.length} 檔${rows.length > 200 ? "（顯示前 200 檔）" : ""}，預設依預估報酬排序；點 ▸ 看 5 年逐年數字。</p></div>
+    <div class="sc"><table class="ft scr lt"><thead><tr>${th}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length}" class="mute">沒有同時符合這些條件的個股，可以取消部分條件</td></tr>`}</tbody></table>
+    <p class="fn">資料由證交所、櫃買中心每月的本益比、殖利率、股價淨值比反推（每月取 15 日起第一個交易日）：近四季 EPS＝收盤價÷本益比、現金股利＝收盤價×殖利率（上櫃直接用每股股利）、每股淨值＝收盤價÷淨值比、ROE≈近四季 EPS÷每股淨值。年度點為「目前」與 1～5 年前同月份。EPS 年化成長＝目前與 5 年前近四季 EPS 的年化成長率；預估報酬＝目前殖利率＋EPS 年化成長，是粗估，不代表未來報酬。虧損時本益比為「-」，該年只能標示虧損。產業別取自營收表。只列上市櫃普通股、近 20 日均量 ${R.min_avg_vol} 張以上、上市滿 5 年的公司。此為規則篩選，不構成投資建議。</p></div>`;
+}
+
+function bindLongterm(box) {
+  const set = (sel, fn) => box.querySelectorAll(sel).forEach(b => b.onclick = () => { fn(b); render(); });
+  set("[data-lc]", b => { ltState.on[b.dataset.lc] = !ltState.on[b.dataset.lc]; });
+  set("[data-lai]", () => { ltState.noai = !ltState.noai; });
+  set("[data-lk]", b => { ltState.market = b.dataset.lk; });
+  set("[data-lt]", b => { const c = b.dataset.lt; ltState.open.has(c) ? ltState.open.delete(c) : ltState.open.add(c); });
+  box.querySelectorAll("[data-lsk]").forEach(el => el.onclick = () => {
+    const k = el.dataset.lsk, cur = ltState.sort;
+    ltState.sort = cur?.k === k ? { k, dir: -cur.dir } : { k, dir: ["rank", "code", "name", "industry", "per", "per_med5"].includes(k) ? 1 : -1 };
+    render();
+  });
+}
+
 function renderFut(f) {
   const ix = f.index;
   const mk = [`<tr class="idx"><td class="name">加權指數</td><td>${num(ix.close, 2)}</td><td class="${cls(ix.change)}">${sg(ix.change, 2)}</td><td class="${cls(ix.change)}">${sg(ix.pct, 2)}%</td><td>${num(ix.value_tril, 6)} 兆元</td><td>-</td><td>-</td></tr>`]
@@ -464,12 +533,13 @@ function renderFut(f) {
 function render() {
   const box = document.querySelector(".scroll");
   const cs = cols();
-  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig", "scr", "val", "dt"].includes(tab);
+  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig", "scr", "val", "dt", "lt"].includes(tab);
   if (tab === "mkt") { box.innerHTML = renderMarket(data.market_breadth); return; }
   if (tab === "sig") { box.innerHTML = renderSignals(data.signals); return; }
   if (tab === "scr") { loadScreens(); box.innerHTML = renderScreens(); bindScreens(box); return; }
   if (tab === "val") { loadValue(); box.innerHTML = renderValue(); bindValue(box); return; }
   if (tab === "dt") { loadDaytrade(); box.innerHTML = renderDaytrade(); bindDaytrade(box); return; }
+  if (tab === "lt") { loadLongterm(); box.innerHTML = renderLongterm(); bindLongterm(box); return; }
   if (tab === "opt") {
     box.innerHTML = data.fut ? renderOpt(data.fut.opt, data.fut.pc, data.fut.date) : '<div class="empty">期交所資料尚未公布，之後排程會自動補上。</div>';
     box.querySelectorAll("[data-opt]").forEach(b => b.onclick = () => { optSel = +b.dataset.opt; render(); });
