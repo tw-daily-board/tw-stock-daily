@@ -300,6 +300,69 @@ function renderRetail(r) {
     (tr.length > 1 ? ftable("散戶多空比走勢", ["日期", "台指（TXF）", "小台（MXF）", "微台（TMF）"], tr) : "");
 }
 
+// ---- 營收 × 估值 × 股價落後（讀 data/value.json，第一次打開分頁才載入） ----
+let val = null, valLoading = false;
+const valState = { on: { c_rev: true, c_val: true, c_lag: true, c_inst: true, yoy3: false, high12: false }, market: "", sort: null };
+const VAL_CONDS = [["c_rev", "營收轉強"], ["c_val", "估值偏低"], ["c_lag", "股價落後"], ["c_inst", "法人沒在買"], ["yoy3", "連續 3 個月年增"], ["high12", "營收創 12 個月新高"]];
+
+function loadValue() {
+  if (val || valLoading) return;
+  valLoading = true;
+  fetch("data/value.json", { cache: "no-cache" })
+    .then(r => { if (!r.ok) throw 0; return r.json(); })
+    .then(j => { val = j; })
+    .catch(() => { val = { error: "營收估值資料尚未產生，之後排程會自動補上。" }; })
+    .finally(() => { if (tab === "val") render(); });
+}
+
+function renderValue() {
+  if (!val) return '<div class="empty">載入中…</div>';
+  if (val.error) return `<div class="empty">${val.error}</div>`;
+  const s = valState, R = val.rules, months = val.rev_months;
+  const avail = k => k === "yoy3" ? months >= 3 : k === "high12" ? months >= 12 : true;
+  const ym = `${val.rev_month.slice(0, 4)}/${val.rev_month.slice(4)}`;
+  const desc = {
+    c_rev: `當月營收年增 > ${R.rev_yoy}% 且累計年增 > ${R.rev_cum_yoy}%`,
+    c_val: `本益比 < ${R.per_max} 倍，或低於同產業中位數`,
+    c_lag: "近 60 日漲幅落後加權指數，或收盤低於 60 日均價",
+    c_inst: `近 ${R.inst_days} 日外資＋投信合計沒有買超`,
+    yoy3: `連續 3 個月營收年增 > ${R.rev_yoy}%`, high12: "當月營收為近 12 個月最高",
+  };
+  const conds = VAL_CONDS.map(([k, t]) => `<button data-vc="${k}" class="${s.on[k] && avail(k) ? "on" : ""}" ${avail(k) ? "" : "disabled"} title="${desc[k]}${avail(k) ? "" : `（營收資料累積 ${months} 個月，還不夠）`}">${t}</button>`).join("");
+  const mk = [["", "全部"], ["上市", "上市"], ["上櫃", "上櫃"]].map(([v, t]) => `<button data-vm="${v}" class="${s.market === v ? "on" : ""}">${t}</button>`).join("");
+  let rows = val.rows.filter(r => VAL_CONDS.every(([k]) => !s.on[k] || !avail(k) || r[k]) && (!s.market || r.market === s.market));
+  if (s.sort) {
+    const { k, dir } = s.sort;
+    rows = rows.slice().sort((a, b) => (typeof a[k] === "string" ? a[k].localeCompare(b[k]) : (a[k] ?? -Infinity) - (b[k] ?? -Infinity)) * dir);
+  }
+  const cols = [["rank", "#"], ["code", "代號"], ["name", "名稱"], ["industry", "產業"], ["close", "收盤價"], ["rev", "營收(億)"],
+    ["yoy", "年增"], ["cum_yoy", "累計年增"], ["per", "本益比"], ["ind_per", "同業PER"], ["dy", "殖利率"],
+    ["ret60", "近60日"], ["rel60", "相對大盤"], ["inst10", `法人${R.inst_days}日(張)`], ["score", "分數"]];
+  const th = cols.map(([k, t]) => `<th data-vsk="${k}" class="${s.sort?.k === k ? (s.sort.dir > 0 ? "asc" : "desc") : ""}">${t}</th>`).join("");
+  const p2 = v => v == null ? "<td>-</td>" : `<td class="${cls(v)}">${sg(v, 2)}%</td>`;
+  const n2 = v => `<td>${v == null ? "-" : num(v, 2)}</td>`;
+  const body = rows.map((r, i) => `<tr><td>${i + 1}</td><td>${stockLink(r.code, r.code)}</td><td class="name">${stockLink(r.code, r.name)}${r.note ? ` <span class="nt" title="營收備註：${r.note.replace(/"/g, "&quot;")}">註</span>` : ""}</td>
+    <td title="${r.market}">${r.industry}</td><td>${r.close.toFixed(2)}</td><td title="月增 ${r.mom == null ? "-" : sg(r.mom, 2) + "%"}">${num(r.rev, 2)}</td>${p2(r.yoy)}${p2(r.cum_yoy)}
+    ${n2(r.per)}${n2(r.ind_per)}<td title="股價淨值比 ${r.pb == null ? "-" : num(r.pb, 2)}">${r.dy == null ? "-" : num(r.dy, 2) + "%"}</td>${p2(r.ret60)}${p2(r.rel60)}<td class="${cls(r.inst10)}">${sg(r.inst10)}</td>
+    <td><b>${r.score == null ? "-" : num(r.score, 1)}</b></td></tr>`).join("");
+  return `<h2 class="sec">營收 × 估值 × 股價落後（${val.date}）</h2><div class="sc opt">
+    <p class="mute">營收月份 ${ym}（已累積 ${months} 個月）・估值與股價 ${val.date}・加權指數近 60 日 ${sg(val.index_ret60, 2)}%（自 ${val.index_from}）</p>
+    <nav class="optnav">${conds}</nav><nav class="optnav">${mk}</nav>
+    <p class="mute">已選條件：${VAL_CONDS.filter(([k]) => s.on[k] && avail(k)).map(([k]) => desc[k]).join("；") || "無（列出全部）"}。共 ${rows.length} 檔。</p></div>
+    <div class="sc"><table class="ft scr val"><thead><tr>${th}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length}" class="mute">沒有同時符合這些條件的個股，可以取消部分條件</td></tr>`}</tbody></table>
+    <p class="fn">只列上市櫃普通股；排除近 20 日均量不到 ${num(R.min_avg_vol)} 張、去年同月營收不到 ${R.min_rev_ly} 億的公司。本益比以近四季獲利計算，虧損公司沒有本益比，不會通過「估值偏低」；同業本益比為同產業（營收表的產業別）有本益比公司的中位數。分數 0～100：年增率越高、本益比越低、近 60 日相對大盤越落後，分數越高，三項各占三分之一。名稱旁「註」為公司營收備註（滑鼠移上去看），常是一次性收入或特殊原因，請自行判斷。尚未排除全額交割股與處置股。營收要到 3 個月、12 個月後才能使用「連續 3 個月年增」「營收創 12 個月新高」。此為規則篩選，不構成投資建議。</p></div>`;
+}
+
+function bindValue(box) {
+  box.querySelectorAll("[data-vc]").forEach(b => b.onclick = () => { valState.on[b.dataset.vc] = !valState.on[b.dataset.vc]; render(); });
+  box.querySelectorAll("[data-vm]").forEach(b => b.onclick = () => { valState.market = b.dataset.vm; render(); });
+  box.querySelectorAll("[data-vsk]").forEach(el => el.onclick = () => {
+    const k = el.dataset.vsk, cur = valState.sort;
+    valState.sort = cur?.k === k ? { k, dir: -cur.dir } : { k, dir: ["rank", "code", "name", "industry", "per", "ind_per", "ret60", "rel60", "inst10"].includes(k) ? 1 : -1 };
+    render();
+  });
+}
+
 function renderFut(f) {
   const ix = f.index;
   const mk = [`<tr class="idx"><td class="name">加權指數</td><td>${num(ix.close, 2)}</td><td class="${cls(ix.change)}">${sg(ix.change, 2)}</td><td class="${cls(ix.change)}">${sg(ix.pct, 2)}%</td><td>${num(ix.value_tril, 6)} 兆元</td><td>-</td><td>-</td></tr>`]
@@ -321,10 +384,11 @@ function renderFut(f) {
 function render() {
   const box = document.querySelector(".scroll");
   const cs = cols();
-  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig", "scr"].includes(tab);
+  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig", "scr", "val"].includes(tab);
   if (tab === "mkt") { box.innerHTML = renderMarket(data.market_breadth); return; }
   if (tab === "sig") { box.innerHTML = renderSignals(data.signals); return; }
   if (tab === "scr") { loadScreens(); box.innerHTML = renderScreens(); bindScreens(box); return; }
+  if (tab === "val") { loadValue(); box.innerHTML = renderValue(); bindValue(box); return; }
   if (tab === "opt") {
     box.innerHTML = data.fut ? renderOpt(data.fut.opt, data.fut.pc, data.fut.date) : '<div class="empty">期交所資料尚未公布，之後排程會自動補上。</div>';
     box.querySelectorAll("[data-opt]").forEach(b => b.onclick = () => { optSel = +b.dataset.opt; render(); });

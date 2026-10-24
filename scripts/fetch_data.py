@@ -355,18 +355,42 @@ def build():
     fi_buy, fi_sell, fi_total = fi_board(is_common_stock)
     fi_etf_buy, fi_etf_sell, fi_etf_total = fi_board(is_etf)
 
-    # 籌碼篩選（連買連賣、背離、隔日沖）：寫到 data/screens.json；失敗不擋住其他股票資料
+    # 交易日清單與 61 日行情（證交所 FMTQIK 近 4 個月）：籌碼篩選、市場強弱、營收估值共用
+    import fetch_market
     import fetch_screens
+    import fetch_value
+    turnover, qall = None, None
     try:
-        qdays = fetch_screens.load_quotes(get_json, fetch_tpex_quotes, days, quotes, REQUEST_GAP)
-        fetch_screens.write(fetch_screens.build(days, qdays, quotes, is_etf, is_common_stock, trade_date))
+        turnover = fetch_market.fetch_turnover(get_json, trade_date, REQUEST_GAP, months=4)
+        price_dates = [date.fromisoformat(r["date"]) for r in reversed(turnover)][:fetch_value.PRICE_DAYS]
+        if price_dates[:len(days)] != [d for d, _ in days]:
+            raise RuntimeError(f"交易日清單與法人快取日期不一致：{price_dates[:3]} vs {[d for d, _ in days][:3]}")
+        qall = fetch_screens.load_quotes(get_json, fetch_tpex_quotes, price_dates, quotes, REQUEST_GAP)
+    except Exception as e:  # noqa: BLE001
+        warn("歷史行情未更新", e)
+
+    # 籌碼篩選（連買連賣、背離、隔日沖）：寫到 data/screens.json；失敗不擋住其他股票資料
+    try:
+        if qall is None:
+            raise RuntimeError("沒有歷史行情")
+        fetch_screens.write(fetch_screens.build(days, qall[:len(days)], quotes, is_etf, is_common_stock, trade_date))
     except Exception as e:  # noqa: BLE001
         warn("籌碼篩選未更新", e)
 
-    # 市場整體強弱：失敗不擋住其他股票資料
-    import fetch_market
+    # 營收 × 估值 × 股價落後：寫到 data/value.json
     try:
-        market = fetch_market.build(get_json, trade_date, quotes, industry, [d for d, _ in days], REQUEST_GAP)
+        if qall is None:
+            raise RuntimeError("沒有歷史行情")
+        revenue, rev_ym = fetch_value.load_revenue(get_json, REQUEST_GAP)
+        time.sleep(REQUEST_GAP)
+        valuation = fetch_value.load_valuation(get_json, trade_date, REQUEST_GAP)
+        fetch_value.write(fetch_value.build(trade_date, quotes, days, qall, turnover, revenue, rev_ym, valuation, is_common_stock))
+    except Exception as e:  # noqa: BLE001
+        warn("營收估值篩選未更新", e)
+
+    # 市場整體強弱：失敗不擋住其他股票資料
+    try:
+        market = fetch_market.build(get_json, trade_date, quotes, industry, [d for d, _ in days], REQUEST_GAP, turnover)
     except Exception as e:  # noqa: BLE001
         warn("市場強弱資料未更新", e)
         market = None
@@ -476,6 +500,12 @@ def check_required(require, out, today):
             sd = None
         if sd != t:
             errs.append(f"籌碼篩選資料仍是 {sd}，沒有 {t}")
+        try:
+            vd = json.loads((DATA / "value.json").read_text()).get("date")
+        except (OSError, ValueError):
+            vd = None
+        if vd != t:
+            errs.append(f"營收估值篩選資料仍是 {vd}，沒有 {t}")
     if "margin" in require and (out.get("signals") or {}).get("chips_date") != t:
         errs.append(f"融資融券仍是 {(out.get('signals') or {}).get('chips_date')}，沒有 {t}")
     return errs

@@ -2,8 +2,8 @@
 
 全部用固定規則從已抓的資料計算，不用 LLM：
   - 法人：data/inst/（fetch_data 的快取，每檔 [外資, 投信, 自營商, 合計, 自營自行, 自營避險]，股）
-  - 行情：data/quotes/（本檔維護，每檔 [收盤, 漲跌, 成交張數]）；當天直接用 fetch_data 抓到的行情，
-          以前的交易日用證交所 MI_INDEX 與櫃買 otc 依日期回補
+  - 行情：data/quotes/（本檔維護，每檔 [收盤, 漲跌, 成交張數]，保留 61 個交易日，營收估值篩選也用）；
+          當天直接用 fetch_data 抓到的行情，以前的交易日用證交所 MI_INDEX 與櫃買 otc 依日期回補
 輸出 data/screens.json（籌碼篩選分頁讀這個檔）。隔日沖保留近 5 個交易日的逐日名單，並統計熱門股
 （近 5 日沖銷次數、連續一買一賣天數），都是從法人快取直接回算，不需要另外累積。
 """
@@ -63,26 +63,27 @@ def from_quotes(quotes):
     return {c: [q["close"], q["change"], q["volume"]] for c, q in quotes.items()}
 
 
-def load_quotes(get_json, fetch_tpex_quotes, inst_days, quotes_today, gap):
-    """依法人快取的交易日（新→舊）取得每日行情；回傳 list，順序與 inst_days 相同"""
+def load_quotes(get_json, fetch_tpex_quotes, dates, quotes_today, gap):
+    """dates：交易日清單（新→舊，第一天是今天）；回傳每日行情 list，順序與 dates 相同。
+    當天用最新抓到的行情（20:57 那輪會是修正後的數字），以前的交易日讀快取，沒有才回補。"""
     QUOTE_DIR.mkdir(parents=True, exist_ok=True)
     out = []
-    for i, (d, _) in enumerate(inst_days):
+    for i, d in enumerate(dates):
         p = QUOTE_DIR / f"{d:%Y%m%d}.json"
         if i == 0:
-            q = from_quotes(quotes_today)   # 當天用最新抓到的行情（20:57 那輪會是修正後的數字）
+            q = from_quotes(quotes_today)
         elif p.exists():
             q = json.loads(p.read_text())
         else:
             time.sleep(gap)
             q = fetch_twse_day(get_json, d)
             if not q:
-                raise RuntimeError(f"證交所 {d} 個股行情抓不到（法人有資料）")
+                raise RuntimeError(f"證交所 {d} 個股行情抓不到（應為交易日）")
             time.sleep(gap)
             q.update({c: v for c, v in from_quotes(fetch_tpex_quotes(d)).items() if c not in q})
         p.write_text(json.dumps(q, ensure_ascii=False, separators=(",", ":")))
         out.append(q)
-    keep = {f"{d:%Y%m%d}.json" for d, _ in inst_days}
+    keep = {f"{d:%Y%m%d}.json" for d in dates}
     for p in QUOTE_DIR.glob("*.json"):
         if p.name not in keep:
             p.unlink()
@@ -90,19 +91,34 @@ def load_quotes(get_json, fetch_tpex_quotes, inst_days, quotes_today, gap):
 
 
 # ---------- 規則 ----------
-def period_pct(qdays, code, n):
-    """近 n 個交易日（含今天）的漲跌幅%：今天收盤 vs 第 n 天前一日的收盤"""
+def day_return(qdays, code, i):
+    """第 i 天（0＝今天）的報酬倍數＝收盤÷參考價；參考價＝收盤－漲跌，除權息與分割日證交所會調整參考價。
+    漲跌方向不明時改用前一日收盤。"""
+    close, chg = qdays[i][code][0], qdays[i][code][1]
+    if chg is not None and close - chg > 0:
+        return close / (close - chg)
+    if i + 1 < len(qdays) and code in qdays[i + 1] and qdays[i + 1][code][0] > 0:
+        return close / qdays[i + 1][code][0]
+    return None
+
+
+def adj_closes(qdays, code, n):
+    """還原股價：今天收盤往前 n 天（共 n+1 個值，新→舊），排除除權息與分割造成的跳動；資料不足回傳 None"""
     if len(qdays) < n or any(code not in q for q in qdays[:n]):
         return None
-    close = qdays[0][code][0]
-    first_close, first_chg = qdays[n - 1][code][0], qdays[n - 1][code][1]
-    if first_chg is not None:
-        base = first_close - first_chg
-    elif len(qdays) > n and code in qdays[n]:
-        base = qdays[n][code][0]
-    else:
-        return None
-    return round((close / base - 1) * 100, 2) if base else None
+    out = [qdays[0][code][0]]
+    for i in range(n):
+        r = day_return(qdays, code, i)
+        if not r:
+            return None
+        out.append(out[-1] / r)
+    return out
+
+
+def period_pct(qdays, code, n):
+    """近 n 個交易日（含今天）的還原漲跌幅%"""
+    a = adj_closes(qdays, code, n)
+    return round((a[0] / a[-1] - 1) * 100, 2) if a else None
 
 
 def streak(lots):

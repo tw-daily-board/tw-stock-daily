@@ -119,5 +119,13 @@ table.sig th:nth-child(-n+2),table.sig th:last-child{text-align:left}
 table.sig tr.g1 td{border-top:2px solid var(--line)}
 /* 籌碼篩選 */
 table.scr td:nth-child(-n+4),table.scr thead tr:first-child th:nth-child(-n+4){text-align:left}
+table.val td:nth-child(n+5),table.val thead tr:first-child th:nth-child(n+5){text-align:right}
 table.scr td a.sl{font-weight:inherit}
 td.hot5{font-weight:700;color:var(--accent)}
+/* 營收估值 */
+.nt{display:inline-block;font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:0 3px;cursor:help;font-weight:400}
+.optnav button:disabled{opacity:.45;cursor:not-allowed}
+table.val td:nth-child(4),table.val thead tr:first-child th:nth-child(4){text-align:left}
+table.val td:nth-child(4),table.val td:nth-child(3){white-space:nowrap}
+table.val td span.nt{display:inline-block;margin-left:4px}
+table.val th,table.val td{padding:9px 7px}

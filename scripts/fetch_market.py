@@ -86,11 +86,14 @@ def load_days(get_json, dates, gap):
     return out
 
 
-def fetch_turnover(get_json, trade_date, gap):
-    """上市每日成交金額（億）與加權指數；本月＋上月，足夠算 20 日均量"""
+def fetch_turnover(get_json, trade_date, gap, months=2):
+    """上市每日成交金額（億）與加權指數（日期由舊到新）；抓最近 months 個月。也當作交易日清單用。"""
     rows = []
-    first = trade_date.replace(day=1)
-    for m in (first - timedelta(days=1), trade_date):
+    ms, m = [], trade_date.replace(day=1)
+    for _ in range(months):
+        ms.insert(0, m)
+        m = (m - timedelta(days=1)).replace(day=1)
+    for m in ms:
         time.sleep(gap)
         j = get_json(f"https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK?date={m:%Y%m}01&response=json")
         for r in j.get("data") or []:
@@ -116,10 +119,11 @@ def fetch_sector_index(get_json, trade_date):
     return out
 
 
-def build(get_json, trade_date, quotes, industry, dates, gap=3.0):
-    """quotes：上市＋上櫃個股行情（fetch_data 的格式）；industry：上市代號→產業別代碼；dates：交易日清單（新→舊）"""
+def build(get_json, trade_date, quotes, industry, dates, gap=3.0, turnover=None):
+    """quotes：上市＋上櫃個股行情（fetch_data 的格式）；industry：上市代號→產業別代碼；dates：交易日清單（新→舊）；
+    turnover：已抓好的 fetch_turnover 結果（沒有就自己抓）"""
     days = load_days(get_json, dates, gap)
-    turnover = fetch_turnover(get_json, trade_date, gap)
+    turnover = turnover or fetch_turnover(get_json, trade_date, gap)
     time.sleep(gap)
     sidx = fetch_sector_index(get_json, trade_date)
 

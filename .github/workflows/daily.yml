@@ -57,7 +57,7 @@ jobs:
         run: |
           mkdir _site
           cp -r index.html style.css app.js data _site/
-          rm -rf _site/data/inst _site/data/fut _site/data/history _site/data/market _site/data/chips _site/data/quotes
+          rm -rf _site/data/inst _site/data/fut _site/data/history _site/data/market _site/data/chips _site/data/quotes _site/data/revenue
       - uses: actions/upload-pages-artifact@v3
         if: ${{ !cancelled() }}
         with:
