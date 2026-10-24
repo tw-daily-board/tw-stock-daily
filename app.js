@@ -655,8 +655,8 @@ function renderHome() {
       `加權 ${num(f.opt.ref, 0)}・此系列 P/C ${o.pc == null ? "-" : num(o.pc, 1) + "%"}`));
   }
   const top3 = (rows, t) => rows.slice(0, 3).map(r => `<li><span>${r.name}</span><b class="${cls(r.fi_today)}">${sg(r.fi_today)}</b></li>`).join("") || `<li class="mute">${t}</li>`;
-  cards.push(card("fi", "外資買超前 3 名（張）", `<ol class="t3">${top3(d.fi_buy, "無")}</ol>`));
-  cards.push(card("fi", "外資賣超前 3 名（張）", `<ol class="t3">${top3(d.fi_sell, "無")}</ol>`));
+  cards.push(card("fi", "外資買賣超前 3 名（張）",
+    `<p class="t3h">買超</p><ol class="t3">${top3(d.fi_buy, "無")}</ol><p class="t3h">賣超</p><ol class="t3">${top3(d.fi_sell, "無")}</ol>`));
   return `<h2 class="sec">今日重點（股票 ${d.date}${f ? `・期貨 ${f.date}` : ""}）</h2><div class="sc opt"><div class="home">${cards.join("")}</div>
     <p class="fn">點卡片看詳細資料。綜合判讀依固定規則統計各項訊號，不是預測，也不構成投資建議。</p></div>`;
 }
