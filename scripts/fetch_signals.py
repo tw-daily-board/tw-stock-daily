@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CHIPS_DIR = ROOT / "data" / "chips"
 FUT_DIR = ROOT / "data" / "fut"
 DAYS = 10
+RETAIL_TH = 10        # 小台散戶多空比與前幾日平均相差幾個百分點才判讀
 
 
 class MarginNotReady(RuntimeError):
@@ -186,6 +187,16 @@ def signals(out, chips, chips_err):
         lg = next(r for r in fut["large"] if r["name"] == "台指")
         add("期貨", "十大特定法人台指近月", fmt(lg["sp_near"], 0, " 口"),
             f"較前日 {fmt(lg.get('sp_near_d'))} 口；其他月 {fmt(lg['sp_far'])} 口", sgn(lg.get("sp_near_d") or 0, 1000))
+        # 小台散戶多空比（反向指標）：比前幾日平均高 RETAIL_TH 個百分點以上偏空、低 RETAIL_TH 以上偏多
+        rt = fut.get("retail")
+        if rt and len(rt.get("trend") or []) >= 2:
+            cur = next(x for x in rt["rows"] if x["code"] == "MTX")
+            past = [t["MTX"] for t in rt["trend"][:-1] if t.get("MTX") is not None]
+            if cur["ratio"] is not None and past:
+                avg = sum(past) / len(past)
+                add("期貨", "小台散戶多空比（反向）", f"{cur['ratio']:+.2f}%",
+                    f"前 {len(past)} 日平均 {avg:+.2f}%；散戶淨部位 {fmt(cur['net'])} 口（較前日 {fmt(cur.get('net_d'))}）；散戶越偏多越視為偏空",
+                    -sgn(cur["ratio"] - avg, RETAIL_TH))
         net_amt = round(fi["call_amt"] - fi["put_amt"], 2)
         add("期貨", "外資選擇權（買權－賣權淨金額）", fmt(net_amt, 2, " 億"),
             f"買權 {fmt(fi['call_amt'], 2)} 億、賣權 {fmt(fi['put_amt'], 2)} 億（淨未平倉金額）", sgn(net_amt, 0.5))

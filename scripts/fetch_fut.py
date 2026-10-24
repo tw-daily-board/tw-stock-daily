@@ -19,7 +19,7 @@ from pathlib import Path
 
 TAIFEX = "https://www.taifex.com.tw/cht/3/"
 FUT_DIR = Path(__file__).resolve().parent.parent / "data" / "fut"
-KEEP_SNAPSHOTS = 5
+KEEP_SNAPSHOTS = 6       # 今天＋前 5 個交易日（散戶多空比用前 5 日平均）
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"}
 
 # 收盤行情表：(顯示名稱, 契約代號, 取幾個月份)；近月＋次月，分類指數期只取近月
