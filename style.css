@@ -28,6 +28,9 @@ th.asc::after{content:" ▲"}th.desc::after{content:" ▼"}
 th:nth-child(-n+4),td:nth-child(-n+4){text-align:left}
 thead tr:first-child th{position:static;cursor:default;text-align:center;border-bottom:1px solid var(--line)}
 thead tr:first-child th.plain{border-bottom:0}
+thead tr:first-child th.plain:first-child{text-align:left}
+.swipe{display:none;position:sticky;left:12px;font-weight:400;font-size:.85em;color:var(--mute)}
+@media (max-width:760px){.swipe{display:inline-block}}
 thead tr:first-child th:hover{color:var(--mute)}
 th.grp{color:var(--fg)}
 th.gl,td.gl{border-left:1px solid var(--line)}

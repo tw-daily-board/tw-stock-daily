@@ -62,7 +62,7 @@ function tableHtml(key, rows, cs, total) {
   }
   const plain = cs.filter(c => !c.g).length;
   const grps = isFi(tab) ? [["fi", "外資及陸資"]] : [INST_VIEWS[view]];
-  const groupRow = "<tr>" + `<th class="plain" colspan="${plain}"></th>` +
+  const groupRow = "<tr>" + `<th class="plain" colspan="${plain}"><span class="swipe">← 左滑看${grps[0][1]} →</span></th>` +
     grps.map(([p, g]) => `<th class="grp" colspan="${cs.filter(c => c.g === g).length}">${g}（張）</th>`).join("") + "</tr>";
   const th = c => `<th data-k="${c.k}" data-sec="${key}" class="${c.first ? "gl " : ""}${sort?.sec === key && sort.k === c.k ? (sort.dir > 0 ? "asc" : "desc") : ""}">${c.t}</th>`;
   const cell = (c, r) => {
