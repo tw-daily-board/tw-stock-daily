@@ -302,7 +302,7 @@ function renderRetail(r) {
 
 // ---- 營收 × 估值 × 股價落後（讀 data/value.json，第一次打開分頁才載入） ----
 let val = null, valLoading = false;
-const valState = { on: { c_rev: true, c_val: true, c_lag: true, c_inst: true, yoy3: false, high12: false }, market: "", sort: null };
+const valState = { on: { c_rev: true, c_val: true, c_lag: true, c_inst: true, yoy3: false, high12: false }, market: "", sort: null, open: new Set() };
 const VAL_CONDS = [["c_rev", "營收轉強"], ["c_val", "估值偏低"], ["c_lag", "股價落後"], ["c_inst", "法人沒在買"], ["yoy3", "連續 3 個月年增"], ["high12", "營收創 12 個月新高"]];
 
 function loadValue() {
@@ -341,21 +341,36 @@ function renderValue() {
   const th = cols.map(([k, t]) => `<th data-vsk="${k}" class="${s.sort?.k === k ? (s.sort.dir > 0 ? "asc" : "desc") : ""}">${t}</th>`).join("");
   const p2 = v => v == null ? "<td>-</td>" : `<td class="${cls(v)}">${sg(v, 2)}%</td>`;
   const n2 = v => `<td>${v == null ? "-" : num(v, 2)}</td>`;
-  const body = rows.map((r, i) => `<tr><td>${i + 1}</td><td>${stockLink(r.code, r.code)}</td><td class="name">${stockLink(r.code, r.name)}${r.note ? ` <span class="nt" title="營收備註：${r.note.replace(/"/g, "&quot;")}">註</span>` : ""}</td>
-    <td title="${r.market}">${r.industry}</td><td>${r.close.toFixed(2)}</td><td title="月增 ${r.mom == null ? "-" : sg(r.mom, 2) + "%"}">${num(r.rev, 2)}</td>${p2(r.yoy)}${p2(r.cum_yoy)}
-    ${n2(r.per)}${n2(r.ind_per)}<td title="股價淨值比 ${r.pb == null ? "-" : num(r.pb, 2)}">${r.dy == null ? "-" : num(r.dy, 2) + "%"}</td>${p2(r.ret60)}${p2(r.rel60)}<td class="${cls(r.inst10)}">${sg(r.inst10)}</td>
-    <td><b>${r.score == null ? "-" : num(r.score, 1)}</b></td></tr>`).join("");
+  // 點 ▸ 或「註」展開該列細節（手機沒有滑鼠移上去的提示，所以細節都放在展開列）
+  const esc = t => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const detail = r => `<tr class="vd"><td colspan="${cols.length}"><div>
+    <span>市場 <b>${r.market}</b></span><span>月增 <b class="${cls(r.mom)}">${r.mom == null ? "-" : sg(r.mom, 2) + "%"}</b></span>
+    <span>淨值比 <b>${r.pb == null ? "-" : num(r.pb, 2)}</b></span><span>成交量 <b>${num(r.volume)}</b> 張（20 日均量 ${num(r.avg20)}）</span>
+    <span>收盤${r.below_ma60 == null ? "：60 日均價資料不足" : r.below_ma60 ? "<b>低於</b> 60 日均價" : "高於 60 日均價"}</span></div>
+    <p>${r.note ? `營收備註：${esc(r.note)}` : "這個月沒有營收備註。"}</p></td></tr>`;
+  const body = rows.map((r, i) => {
+    const open = s.open.has(r.code);
+    return `<tr class="${open ? "vo" : ""}"><td><button class="vt" data-vt="${r.code}" aria-expanded="${open}" aria-label="展開 ${r.name} 細節">${open ? "▾" : "▸"}</button>${i + 1}</td><td>${stockLink(r.code, r.code)}</td><td class="name">${stockLink(r.code, r.name)}${r.note ? `<button class="nt" data-vt="${r.code}">註</button>` : ""}</td>
+    <td>${r.industry}</td><td>${r.close.toFixed(2)}</td><td>${num(r.rev, 2)}</td>${p2(r.yoy)}${p2(r.cum_yoy)}
+    ${n2(r.per)}${n2(r.ind_per)}<td>${r.dy == null ? "-" : num(r.dy, 2) + "%"}</td>${p2(r.ret60)}${p2(r.rel60)}<td class="${cls(r.inst10)}">${sg(r.inst10)}</td>
+    <td><b>${r.score == null ? "-" : num(r.score, 1)}</b></td></tr>` + (open ? detail(r) : "");
+  }).join("");
   return `<h2 class="sec">營收 × 估值 × 股價落後（${val.date}）</h2><div class="sc opt">
     <p class="mute">營收月份 ${ym}（已累積 ${months} 個月）・估值與股價 ${val.date}・加權指數近 60 日 ${sg(val.index_ret60, 2)}%（自 ${val.index_from}）</p>
     <nav class="optnav">${conds}</nav><nav class="optnav">${mk}</nav>
     <p class="mute">已選條件：${VAL_CONDS.filter(([k]) => s.on[k] && avail(k)).map(([k]) => desc[k]).join("；") || "無（列出全部）"}。共 ${rows.length} 檔。</p></div>
     <div class="sc"><table class="ft scr val"><thead><tr>${th}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length}" class="mute">沒有同時符合這些條件的個股，可以取消部分條件</td></tr>`}</tbody></table>
-    <p class="fn">只列上市櫃普通股；排除近 20 日均量不到 ${num(R.min_avg_vol)} 張、去年同月營收不到 ${R.min_rev_ly} 億的公司。本益比以近四季獲利計算，虧損公司沒有本益比，不會通過「估值偏低」；同業本益比為同產業（營收表的產業別）有本益比公司的中位數。分數 0～100：年增率越高、本益比越低、近 60 日相對大盤越落後，分數越高，三項各占三分之一。名稱旁「註」為公司營收備註（滑鼠移上去看），常是一次性收入或特殊原因，請自行判斷。尚未排除全額交割股與處置股。營收要到 3 個月、12 個月後才能使用「連續 3 個月年增」「營收創 12 個月新高」。此為規則篩選，不構成投資建議。</p></div>`;
+    <p class="fn">只列上市櫃普通股；排除近 20 日均量不到 ${num(R.min_avg_vol)} 張、去年同月營收不到 ${R.min_rev_ly} 億的公司。本益比以近四季獲利計算，虧損公司沒有本益比，不會通過「估值偏低」；同業本益比為同產業（營收表的產業別）有本益比公司的中位數。分數 0～100：年增率越高、本益比越低、近 60 日相對大盤越落後，分數越高，三項各占三分之一。點每列最前面的 ▸ 或名稱旁的「註」可展開細節：營收備註（常是報價、併購、一次性收入等原因，請自行判斷）、市場、月增、淨值比、成交量。尚未排除全額交割股與處置股。營收要到 3 個月、12 個月後才能使用「連續 3 個月年增」「營收創 12 個月新高」。此為規則篩選，不構成投資建議。</p></div>`;
 }
 
 function bindValue(box) {
   box.querySelectorAll("[data-vc]").forEach(b => b.onclick = () => { valState.on[b.dataset.vc] = !valState.on[b.dataset.vc]; render(); });
   box.querySelectorAll("[data-vm]").forEach(b => b.onclick = () => { valState.market = b.dataset.vm; render(); });
+  box.querySelectorAll("[data-vt]").forEach(b => b.onclick = () => {
+    const c = b.dataset.vt;
+    valState.open.has(c) ? valState.open.delete(c) : valState.open.add(c);
+    render();
+  });
   box.querySelectorAll("[data-vsk]").forEach(el => el.onclick = () => {
     const k = el.dataset.vsk, cur = valState.sort;
     valState.sort = cur?.k === k ? { k, dir: -cur.dir } : { k, dir: ["rank", "code", "name", "industry", "per", "ind_per", "ret60", "rel60", "inst10"].includes(k) ? 1 : -1 };

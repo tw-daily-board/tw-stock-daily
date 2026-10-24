@@ -123,9 +123,18 @@ table.val td:nth-child(n+5),table.val thead tr:first-child th:nth-child(n+5){tex
 table.scr td a.sl{font-weight:inherit}
 td.hot5{font-weight:700;color:var(--accent)}
 /* 營收估值 */
-.nt{display:inline-block;font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:0 3px;cursor:help;font-weight:400}
+.nt{display:inline-block;font:inherit;font-size:11px;color:var(--accent);background:none;border:1px solid var(--accent);border-radius:4px;padding:0 3px;cursor:pointer;font-weight:400}
 .optnav button:disabled{opacity:.45;cursor:not-allowed}
 table.val td:nth-child(4),table.val thead tr:first-child th:nth-child(4){text-align:left}
 table.val td:nth-child(4),table.val td:nth-child(3){white-space:nowrap}
-table.val td span.nt{display:inline-block;margin-left:4px}
+table.val td button.nt{margin-left:4px}
 table.val th,table.val td{padding:9px 7px}
+button.vt{font:inherit;background:none;border:0;color:var(--accent);cursor:pointer;padding:4px 6px 4px 0;min-width:22px}
+table.val tr.vo td{border-bottom:0}
+table.val tr.vd td{text-align:left;white-space:normal;background:color-mix(in srgb,var(--accent) 5%,transparent);font-size:13px}
+table.val tr.vd div{display:flex;flex-wrap:wrap;gap:4px 18px;color:var(--mute)}
+table.val tr.vd b{color:var(--fg)}
+table.val tr.vd b.up{color:var(--up)}table.val tr.vd b.down{color:var(--down)}
+table.val tr.vd p{margin:6px 0 0;max-width:820px;line-height:1.6}
+/* 展開列的內容固定在可見範圍內換行（表格比手機螢幕寬時，不會跑到畫面外） */
+table.val tr.vd div,table.val tr.vd p{position:sticky;left:12px;max-width:min(820px,calc(100vw - 80px))}
