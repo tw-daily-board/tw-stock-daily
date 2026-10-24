@@ -103,7 +103,7 @@ def is_common_stock(code):
 
 
 # ---------- 行情 ----------
-def parse_quote(code, name, close, chg_raw, shares, value, issued, market):
+def parse_quote(code, name, close, chg_raw, shares, value, issued, market, high=None, low=None):
     close, shares = num(close), num(shares)
     if close is None or not shares:
         return None  # 當日無成交
@@ -121,6 +121,7 @@ def parse_quote(code, name, close, chg_raw, shares, value, issued, market):
         "volume": round(shares / 1000),              # 張
         "value": num(value) or 0.0,                  # 元
         "issued": num(issued),                       # 已發行股數（上櫃行情內含）
+        "high": num(high), "low": num(low),          # 最高、最低（算振幅）
     }
 
 
@@ -140,7 +141,7 @@ def fetch_twse_quotes():
     if head is None:
         raise RuntimeError(f"STOCK_DAY_ALL 找不到表頭，回應開頭: {text[:200]!r}")
     f = [c.strip() for c in rows[head]]
-    ix = {k: f.index(k) for k in ["日期", "證券代號", "證券名稱", "成交股數", "成交金額", "收盤價", "漲跌價差"]}
+    ix = {k: f.index(k) for k in ["日期", "證券代號", "證券名稱", "成交股數", "成交金額", "收盤價", "漲跌價差", "最高價", "最低價"]}
     out, trade_date = {}, None
     for r in rows[head + 1:]:
         if len(r) < len(f) or not r[ix["證券代號"]].strip():
@@ -148,7 +149,7 @@ def fetch_twse_quotes():
         trade_date = trade_date or parse_date(r[ix["日期"]])
         code = r[ix["證券代號"]].strip()
         q = parse_quote(code, r[ix["證券名稱"]].strip(), r[ix["收盤價"]], r[ix["漲跌價差"]],
-                        r[ix["成交股數"]], r[ix["成交金額"]], None, "上市")
+                        r[ix["成交股數"]], r[ix["成交金額"]], None, "上市", r[ix["最高價"]], r[ix["最低價"]])
         if q:
             out[code] = q
     if not out or trade_date is None:
@@ -179,10 +180,11 @@ def fetch_tpex_quotes(d):
 
     ic, inm, icl, ich = col("代號"), col("名稱"), col("收盤"), col("漲跌")
     ish, iva, iis = col("成交股數"), col("成交金額"), col("發行股數")
+    ihi, ilo = col("最高"), col("最低")
     out = {}
     for r in t["data"]:
         code = str(r[ic]).strip()
-        q = parse_quote(code, str(r[inm]).strip(), r[icl], r[ich], r[ish], r[iva], r[iis], "上櫃")
+        q = parse_quote(code, str(r[inm]).strip(), r[icl], r[ich], r[ish], r[iva], r[iis], "上櫃", r[ihi], r[ilo])
         if q:
             out[code] = q
     return out
@@ -388,6 +390,13 @@ def build():
     except Exception as e:  # noqa: BLE001
         warn("營收估值篩選未更新", e)
 
+    # 當沖觀察（當沖量值、振幅、注意／處置／暫停先賣後買）：寫到 data/daytrade.json
+    import fetch_daytrade
+    try:
+        fetch_daytrade.write(fetch_daytrade.build(get_json, trade_date, quotes, qall, is_etf, is_common_stock, REQUEST_GAP))
+    except Exception as e:  # noqa: BLE001
+        warn("當沖觀察未更新", e)
+
     # 市場整體強弱：失敗不擋住其他股票資料
     try:
         market = fetch_market.build(get_json, trade_date, quotes, industry, [d for d, _ in days], REQUEST_GAP, turnover)
@@ -506,6 +515,12 @@ def check_required(require, out, today):
             vd = None
         if vd != t:
             errs.append(f"營收估值篩選資料仍是 {vd}，沒有 {t}")
+        try:
+            dd = json.loads((DATA / "daytrade.json").read_text()).get("date")
+        except (OSError, ValueError):
+            dd = None
+        if dd != t:
+            errs.append(f"當沖觀察資料仍是 {dd}，沒有 {t}")
     if "margin" in require and (out.get("signals") or {}).get("chips_date") != t:
         errs.append(f"融資融券仍是 {(out.get('signals') or {}).get('chips_date')}，沒有 {t}")
     return errs

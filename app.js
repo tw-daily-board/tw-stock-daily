@@ -378,6 +378,71 @@ function bindValue(box) {
   });
 }
 
+// ---- 當沖觀察（讀 data/daytrade.json，第一次打開分頁才載入） ----
+let dtd = null, dtLoading = false;
+const dtState = { mode: "dt", etf: "stock", market: "", hide: false, sort: null, open: new Set() };
+const DT_MODES = [["dt", "當沖量", "dt"], ["dt_ratio", "當沖比率", "dt_ratio"], ["amp", "振幅", "amp"], ["vol_ratio", "量能放大", "vol_ratio"], ["flag", "有標記", "volume"]];
+const DT_BAD = ["處置", "非當沖標的"];
+
+function loadDaytrade() {
+  if (dtd || dtLoading) return;
+  dtLoading = true;
+  fetch("data/daytrade.json", { cache: "no-cache" })
+    .then(r => { if (!r.ok) throw 0; return r.json(); })
+    .then(j => { dtd = j; })
+    .catch(() => { dtd = { error: "當沖觀察資料尚未產生，之後排程會自動補上。" }; })
+    .finally(() => { if (tab === "dt") render(); });
+}
+
+function renderDaytrade() {
+  if (!dtd) return '<div class="empty">載入中…</div>';
+  if (dtd.error) return `<div class="empty">${dtd.error}</div>`;
+  const s = dtState, R = dtd.rules, md = d => d.slice(5).replace("-", "/");
+  const btn = (attr, v, t, on) => `<button ${attr}="${v}" class="${on ? "on" : ""}">${t}</button>`;
+  const mode = DT_MODES.find(m => m[0] === s.mode);
+  let rows = dtd.rows.filter(r => (s.etf === "all" || (s.etf === "etf") === r.etf) && (!s.market || r.market === s.market)
+    && (!s.hide || !r.flags.some(f => DT_BAD.includes(f))) && (s.mode !== "flag" || r.flags.length) && (r.volume >= R.min_vol || s.mode === "flag"));
+  const key = s.sort?.k || mode[2], dir = s.sort ? s.sort.dir : -1;
+  rows = rows.slice().sort((a, b) => (typeof a[key] === "string" ? a[key].localeCompare(b[key]) : (a[key] ?? -Infinity) - (b[key] ?? -Infinity)) * dir).slice(0, 100);
+  const mk = m => { const x = dtd.market[m]; return `<div><h3>${m}當沖</h3><p class="big">${num(x.ratio_vol, 2)}%</p><p class="mute">占成交股數；買進金額占 ${num(x.ratio_buy, 2)}%</p></div>`; };
+  const cols = [["rank", "#"], ["code", "代號"], ["name", "名稱"], ["close", "收盤價"], ["pct", "漲跌幅"], ["amp", "振幅"], ["volume", "成交量(張)"],
+    ["vol_ratio", "量比(20日)"], ["dt", "當沖(張)"], ["dt_ratio", "當沖比率"], ["flags", "標記"]];
+  const th = cols.map(([k, t]) => `<th data-dsk="${k}" class="${(s.sort?.k || mode[2]) === k ? (dir > 0 ? "asc" : "desc") : ""}">${t}</th>`).join("");
+  const badge = f => `<span class="fg ${DT_BAD.includes(f) ? "bad" : f === "暫停先賣後買" ? "warn" : ""}">${f}</span>`;
+  const body = rows.map((r, i) => {
+    const open = s.open.has(r.code);
+    return `<tr class="${open ? "vo" : ""}"><td>${r.flag_text.length ? `<button class="vt" data-dt="${r.code}" aria-expanded="${open}">${open ? "▾" : "▸"}</button>` : '<span class="vt"></span>'}${i + 1}</td>
+      <td>${stockLink(r.code, r.code)}</td><td class="name">${stockLink(r.code, r.name)}<span class="mute2"> ${r.market}</span></td><td>${r.close.toFixed(2)}</td>${pctCell(r.pct)}
+      <td>${r.amp == null ? "-" : num(r.amp, 2) + "%"}</td><td>${num(r.volume)}</td><td>${r.vol_ratio == null ? "-" : num(r.vol_ratio, 2) + " 倍"}</td>
+      <td>${r.dt == null ? "-" : num(r.dt)}</td><td>${r.dt_ratio == null ? "-" : num(r.dt_ratio, 1) + "%"}</td><td class="fgs">${r.flags.map(badge).join("")}</td></tr>` +
+      (open ? `<tr class="vd"><td colspan="${cols.length}"><p>${r.flag_text.map(t => t.replace(/&/g, "&amp;").replace(/</g, "&lt;")).join("<br>")}</p></td></tr>` : "");
+  }).join("");
+  return `<h2 class="sec">當沖觀察（${dtd.date}，供 ${md(dtd.next_day)} 盤前參考）</h2><div class="sc opt">
+    <div class="sr">${mk("上市")}${mk("上櫃")}</div>
+    <nav class="optnav">${DT_MODES.map(([k, t]) => btn("data-dm", k, t, s.mode === k)).join("")}</nav>
+    <nav class="optnav">${[["stock", "個股"], ["etf", "ETF"], ["all", "全部"]].map(([v, t]) => btn("data-de", v, t, s.etf === v)).join("")}
+      ${[["", "上市＋上櫃"], ["上市", "上市"], ["上櫃", "上櫃"]].map(([v, t]) => btn("data-dk", v, t, s.market === v)).join("")}
+      ${btn("data-dh", 1, "隱藏不能當沖的", s.hide)}</nav>
+    <p class="mute">依「${mode[1]}」排序，取前 100 檔；只列成交量 ${num(R.min_vol)} 張以上（「有標記」另含成交量較小但有標記的股票）。點 ▸ 看標記說明。</p></div>
+    <div class="sc"><table class="ft scr dtt"><thead><tr>${th}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length}" class="mute">沒有符合的股票</td></tr>`}</tbody></table>
+    <p class="fn">當沖(張)與當沖比率來自證交所、櫃買中心「當日沖銷交易標的及成交量值」；當沖比率＝當沖成交股數÷當日成交股數。振幅＝（最高－最低）÷昨收。量比＝當日成交量÷前 20 日平均。標記：<b>處置</b>（下一交易日仍在處置期間，人工撮合、通常要預收款券，不能現股當沖）、<b>非當沖標的</b>（不在當日現股當沖標的清單）、<b>暫停先賣後買</b>（當日註記或下一交易日在預告期間）、<b>注意</b>（當日被公布注意交易資訊）、<b>可能處置</b>（注意次數累計可能達處置標準）。盤中即時報價請以券商軟體為準；此為盤後整理，不構成投資建議。</p></div>`;
+}
+
+function bindDaytrade(box) {
+  const set = (sel, fn) => box.querySelectorAll(sel).forEach(b => b.onclick = () => { fn(b); render(); });
+  set("[data-dm]", b => { dtState.mode = b.dataset.dm; dtState.sort = null; });
+  set("[data-de]", b => { dtState.etf = b.dataset.de; });
+  set("[data-dk]", b => { dtState.market = b.dataset.dk; });
+  set("[data-dh]", () => { dtState.hide = !dtState.hide; });
+  set("[data-dt]", b => { const c = b.dataset.dt; dtState.open.has(c) ? dtState.open.delete(c) : dtState.open.add(c); });
+  box.querySelectorAll("[data-dsk]").forEach(el => el.onclick = () => {
+    const k = el.dataset.dsk, cur = dtState.sort || { k: DT_MODES.find(m => m[0] === dtState.mode)[2], dir: -1 };
+    if (k === "flags") return;
+    dtState.sort = cur.k === k ? { k, dir: -cur.dir } : { k, dir: ["rank", "code", "name"].includes(k) ? 1 : -1 };
+    render();
+  });
+}
+
 function renderFut(f) {
   const ix = f.index;
   const mk = [`<tr class="idx"><td class="name">加權指數</td><td>${num(ix.close, 2)}</td><td class="${cls(ix.change)}">${sg(ix.change, 2)}</td><td class="${cls(ix.change)}">${sg(ix.pct, 2)}%</td><td>${num(ix.value_tril, 6)} 兆元</td><td>-</td><td>-</td></tr>`]
@@ -399,11 +464,12 @@ function renderFut(f) {
 function render() {
   const box = document.querySelector(".scroll");
   const cs = cols();
-  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig", "scr", "val"].includes(tab);
+  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig", "scr", "val", "dt"].includes(tab);
   if (tab === "mkt") { box.innerHTML = renderMarket(data.market_breadth); return; }
   if (tab === "sig") { box.innerHTML = renderSignals(data.signals); return; }
   if (tab === "scr") { loadScreens(); box.innerHTML = renderScreens(); bindScreens(box); return; }
   if (tab === "val") { loadValue(); box.innerHTML = renderValue(); bindValue(box); return; }
+  if (tab === "dt") { loadDaytrade(); box.innerHTML = renderDaytrade(); bindDaytrade(box); return; }
   if (tab === "opt") {
     box.innerHTML = data.fut ? renderOpt(data.fut.opt, data.fut.pc, data.fut.date) : '<div class="empty">期交所資料尚未公布，之後排程會自動補上。</div>';
     box.querySelectorAll("[data-opt]").forEach(b => b.onclick = () => { optSel = +b.dataset.opt; render(); });
