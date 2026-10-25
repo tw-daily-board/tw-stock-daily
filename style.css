@@ -307,3 +307,33 @@ details.nw[open] summary{color:var(--accent)}
 details.tv2{margin:4px 0 8px}
 details.tv2 summary{cursor:pointer;color:var(--accent);font-size:13px}
 @media (min-width:1100px){.tgrid{grid-template-columns:1fr 1fr}}
+/* 綜合訊號 v2 */
+ul.dl{list-style:none;margin:8px 0 0;padding:0;font-size:13px}
+ul.dl li{display:flex;align-items:center;gap:8px;line-height:2}
+ul.dl li>span:first-child{min-width:64px}
+/* 今日重點 v2 */
+.vd2{display:flex;align-items:baseline;gap:10px;margin:2px 0}
+.vd2 span{color:var(--mute);font-size:12px;min-width:28px}
+.vd2 b{font-size:22px}
+.spk{display:block;width:100%;height:28px;margin-top:6px}
+.spk .sl2{fill:none;stroke:var(--accent);stroke-width:1.6;vector-effect:non-scaling-stroke;stroke-linejoin:round;opacity:.8}
+.spk .bu{fill:var(--up);opacity:.75}.spk .bd2{fill:var(--down);opacity:.75}
+ul.evl{list-style:none;margin:4px 0 0;padding:0;font-size:13px}
+ul.evl li{display:flex;justify-content:space-between;gap:8px;line-height:1.8}
+ul.evl li span{color:var(--mute)}
+@media (max-width:760px){.vd2 b{font-size:18px}}
+.tag{white-space:nowrap}
+/* 綜合訊號：手機改成一項一張小卡（項目、數值、判讀一行，說明在下面） */
+@media (max-width:760px){
+  table.sig,table.sig tbody{display:block;min-width:0;width:100%}
+  table.sig thead{display:none}
+  table.sig tr{display:grid;grid-template-columns:1fr auto auto;gap:2px 8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
+  table.sig tr.g1{border-top:2px solid var(--line)}
+  table.sig td{border:0;padding:0;position:static;background:none}
+  table.sig tr.g1 td{border-top:0}
+  table.sig td.grpc{grid-column:1/-1;font-weight:600;color:var(--accent);padding:2px 0 4px}
+  table.sig td.grpc:empty{display:none}
+  table.sig td.name{white-space:normal}
+  table.sig td.dt{grid-column:1/-1;min-width:0;font-size:12.5px}
+}
+ul.evl li b{white-space:nowrap}

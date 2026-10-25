@@ -177,27 +177,39 @@ function renderMarket(m) {
 }
 
 // ---- 綜合分析：規則式訊號表 ----
+const vcls = v => v === "偏多" ? "up" : v === "偏空" ? "down" : "";
+const leanTag = b => b > 0 ? '<span class="tag up">偏多</span>' : b < 0 ? '<span class="tag down">偏空</span>' : '<span class="tag nt">中性</span>';
+function termBox(t) {
+  const dims = t.dims.map(d => `<li><span>${d.name}</span>${leanTag(d.lean)}<span class="mute2">${d.bull} 多・${d.bear} 空・${d.n - d.bull - d.bear} 中性</span></li>`).join("");
+  return `<div><h3>${t.name}判讀</h3><p class="big ${vcls(t.verdict)}">${t.verdict}</p>
+    <p class="mute">偏多 ${t.bull} 個面向・偏空 ${t.bear} 個・中性 ${t.neutral} 個</p><ul class="dl">${dims}</ul></div>`;
+}
 function renderSignals(s) {
   if (!s) return '<div class="empty">綜合分析尚未產生，之後排程會自動補上。</div>';
-  const tag = b => b > 0 ? '<span class="tag up">偏多</span>' : b < 0 ? '<span class="tag down">偏空</span>' : '<span class="tag nt">中性</span>';
-  const { bull, bear, neutral, verdict } = s.score;
-  const tot = bull + bear + neutral || 1;
-  const vc = verdict === "偏多" ? "up" : verdict === "偏空" ? "down" : "";
-  let last = "";
-  const rows = s.items.map(i => {
-    const g = i.group === last ? "" : i.group;
-    last = i.group;
-    return `<tr class="${g ? "g1" : ""}"><td class="grpc">${g}</td><td class="name">${i.name}</td><td class="val">${i.value}</td><td>${tag(i.bias)}</td><td class="dt">${i.detail}</td></tr>`;
-  }).join("");
-  const dates = [`股票 ${s.date}`, s.fut_date && `期貨 ${s.fut_date}`, `融資融券 ${s.chips_date || "尚未公布"}`].filter(Boolean).join("・");
+  if (!s.terms) return '<div class="empty">綜合分析格式已更新，下次排程後顯示新版。</div>';
+  const DN = { spot: "現貨籌碼", fut: "期權籌碼", breadth: "市場廣度", sentiment: "情緒槓桿", position: "指數位置" };
+  const table = term => {
+    let last = "";
+    const its = s.items.filter(i => i.term === term).sort((a, b) => (a.dim ? Object.keys(DN).indexOf(a.dim) : 9) - (b.dim ? Object.keys(DN).indexOf(b.dim) : 9));
+    const rows = its.map(i => {
+      const gname = i.dim ? DN[i.dim] : "資訊（不計分）";
+      const g = gname === last ? "" : gname;
+      last = gname;
+      return `<tr class="${g ? "g1" : ""}"><td class="grpc">${g}</td><td class="name">${i.name}</td><td class="val">${i.value}</td><td>${i.scored ? leanTag(i.bias) : '<span class="tag nt">資訊</span>'}</td><td class="dt">${i.detail}</td></tr>`;
+    }).join("");
+    return `<table class="ft sig"><thead><tr><th>面向</th><th>項目</th><th>數值</th><th>判讀</th><th>說明</th></tr></thead><tbody>${rows}</tbody></table>`;
+  };
+  const dates = [`股票 ${s.date}`, s.fut_date && `期貨 ${s.fut_date}`, `融資融券 ${s.chips_date || "尚未公布"}`, `趨勢 ${s.trend_date || "-"}`].filter(Boolean).join("・");
   return `<h2 class="sec">綜合分析（${s.date}）</h2><div class="sc opt">
-    <div class="sr">
-      <div><h3>綜合判讀</h3><p class="big ${vc}">${verdict}</p><p class="mute">偏多 ${bull} 項・偏空 ${bear} 項・中性 ${neutral} 項</p>
-        <div class="ratio"><i class="u" style="width:${bull / tot * 100}%"></i><i class="f" style="width:${neutral / tot * 100}%"></i><i class="d" style="width:${bear / tot * 100}%"></i></div></div>
-      <div><h3>資料日期</h3><p>${dates}</p><p class="mute">產出時間 ${s.generated_at.replace("T", " ").slice(0, 16)}</p></div>
+    <div class="sr">${termBox(s.terms.short)}${termBox(s.terms.mid)}
+      <div><h3>資料日期</h3><p>${dates}</p><p class="mute">產出時間 ${s.generated_at.replace("T", " ").slice(0, 16)}</p>
+        <p class="mute">判讀方式：先把每個面向內的計分項目加總，得出該面向偏多、偏空或中性；偏多與偏空的面向數相差 2 個以上，才判為偏多或偏空，否則為多空互見。</p></div>
     </div></div>
-    <div class="sc"><table class="ft sig"><thead><tr><th>分類</th><th>項目</th><th>數值</th><th>判讀</th><th>說明</th></tr></thead><tbody>${rows}</tbody></table>
-    <p class="fn">每項依固定門檻判讀：外資現貨 ±30 億、投信 ±10 億、騰落 ±200 家、外資台指與十大特定法人變化 ±1,000 口、小台散戶多空比較前 5 日平均 ±10 個百分點（反向：散戶偏多判偏空）、外資選擇權淨金額 ±0.5 億、P/C 比較前 5 日平均 ±5 個百分點、台積電外資 ±1,000 張、前 20 大權值股外資合計 ±5,000 張；量能放量（20 日量比 ≥1.2）時依漲跌判讀；融資在指數下跌時增加視為偏空、在指數上漲時減少視為偏多。偏多與偏空項數相差 3 項以上才判為偏多或偏空，否則為多空互見。此為規則統計，不是預測，也不構成投資建議。</p></div>`;
+    <h2 class="sec">短線（看今天的變化）</h2><div class="sc">${table("short")}</div>
+    <h2 class="sec">中期（看近 20～60 個交易日）</h2><div class="sc">${table("mid")}
+    <p class="fn">短線門檻：外資現貨 ±30 億、投信 ±10 億、台積電外資 ±1,000 張、前 20 大權值股外資合計 ±5,000 張、全市場借券賣出餘額單日 ±0.3%（增加偏空）、騰落 ±200 家、漲停減跌停 ±9 家、量能放量（20 日量比 ≥1.2）時依漲跌判讀、外資台指與十大特定法人變化 ±1,000 口、外資選擇權淨金額 ±0.5 億、融資在指數下跌時增加偏空／指數上漲時減少偏多、小台散戶多空比較前幾日平均 ±10 個百分點（反向）、P/C 比較前 5 日平均 ±5 個百分點。
+    中期門檻：指數在 20／60 日均線之上偏多、之下偏空；外資 20 日累計 ±1,000 億；借券賣出餘額 5 日 ±1%（增加偏空）；騰落線與指數 20 日同向時依騰落方向、背離時反向判讀；外資台指淨未平倉、散戶多空比（反向）、P/C 比、融資餘額（反向）在近 60 日區間的前後 10% 才判讀。
+    此為規則統計，不是預測，也不構成投資建議。</p></div>`;
 }
 
 // ---- 籌碼篩選：連買連賣、籌碼背離、隔日沖（讀 data/screens.json，第一次打開分頁才載入） ----
@@ -518,15 +530,16 @@ function bindLongterm(box) {
 }
 
 // ---- 共用：分頁第一次打開才載入 JSON；可排序表格 ----
-const store = {}, loading = {};
+const store = {}, loading = {}, wantBy = {};
 function need(file, tabs) {
+  tabs.forEach(t => (wantBy[file] ||= new Set()).add(t));
   if (store[file] || loading[file]) return store[file] || null;
   loading[file] = true;
   fetch(`data/${file}.json`, { cache: "no-cache" })
     .then(r => { if (!r.ok) throw 0; return r.json(); })
     .then(j => { store[file] = j; })
     .catch(() => { store[file] = { error: true }; })
-    .finally(() => { loading[file] = false; if (tabs.includes(tab)) render(); });
+    .finally(() => { loading[file] = false; if (wantBy[file].has(tab)) render(); });
   return null;
 }
 const esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -931,45 +944,95 @@ document.querySelectorAll("#view button").forEach(b => b.onclick = () => {
   if (data) render();
 });
 
-// ---- 今日重點：每張卡片點下去到對應分頁 ----
+// ---- 今日重點：12 張卡片，點下去到對應分頁；小走勢圖用 data/trend.json ----
+function spark(vals, kind = "line") {
+  const v = vals.map(x => x ?? null), n = v.length, ok = v.filter(x => x != null);
+  if (ok.length < 2) return "";
+  let lo = Math.min(...ok), hi = Math.max(...ok);
+  if (kind === "bar") { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const W = 100, H = 28, y = x => H - 2 - (x - lo) / (hi - lo) * (H - 4), bw = W / n;
+  let g = "";
+  if (kind === "bar") {
+    g = v.map((x, i) => x == null || x === 0 ? "" : `<rect class="${x > 0 ? "bu" : "bd2"}" x="${(i * bw + bw * 0.15).toFixed(2)}" width="${(bw * 0.7).toFixed(2)}" y="${Math.min(y(x), y(0)).toFixed(2)}" height="${Math.max(0.6, Math.abs(y(x) - y(0))).toFixed(2)}"/>`).join("");
+  } else {
+    let d = "", pen = false;
+    v.forEach((x, i) => { if (x == null) { pen = false; return; } d += `${pen ? "L" : "M"}${(i * bw + bw / 2).toFixed(2)},${y(x).toFixed(2)}`; pen = true; });
+    g = `<path class="sl2" d="${d}"/>`;
+  }
+  return `<svg class="spk" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${g}</svg>`;
+}
 function renderHome() {
   const d = data, mb = d.market_breadth, f = d.fut, s = d.signals;
-  const card = (to, title, body, sub = "") => `<button class="hc" data-go="${to}"><h3>${title}</h3>${body}${sub ? `<p class="mute">${sub}</p>` : ""}<span class="more">看詳細 ›</span></button>`;
+  const tr = need("trend", ["home"]), ev = need("events", ["home", "pre", "news", "exr"]), pre = need("pre", ["home", "pre"]);
+  const rows = tr && !tr.error && tr.rows.at(-1)?.date === d.date ? tr.rows.slice(-20) : null;
+  const col = k => rows ? rows.map(r => r[k]) : [];
+  const card = (to, title, body, sub = "", sp = "") => `<button class="hc" data-go="${to}"><h3>${title}</h3>${body}${sub ? `<p class="mute">${sub}</p>` : ""}${sp}<span class="more">看詳細 ›</span></button>`;
   const big = (v, cl = "") => `<p class="big ${cl}">${v}</p>`;
-  const item = name => (s?.items || []).find(i => i.name.startsWith(name));
+  const item = (name, term = "short") => (s?.items || []).find(i => i.term === term && i.name.startsWith(name));
   const cards = [];
-  if (s) {
-    const { bull, bear, neutral, verdict } = s.score, tot = bull + bear + neutral || 1;
-    cards.push(card("sig", "綜合判讀", big(verdict, verdict === "偏多" ? "up" : verdict === "偏空" ? "down" : "") +
-      `<div class="ratio"><i class="u" style="width:${bull / tot * 100}%"></i><i class="f" style="width:${neutral / tot * 100}%"></i><i class="d" style="width:${bear / tot * 100}%"></i></div>`,
-      `偏多 ${bull}・偏空 ${bear}・中性 ${neutral}（${s.items.length} 項規則）`));
-  }
+  // 1 綜合判讀
+  if (s?.terms) {
+    const t = s.terms;
+    cards.push(card("sig", "綜合判讀", `<p class="vd2"><span>短線</span><b class="${vcls(t.short.verdict)}">${t.short.verdict}</b></p><p class="vd2"><span>中期</span><b class="${vcls(t.mid.verdict)}">${t.mid.verdict}</b></p>`,
+      `短線 ${t.short.bull} 多 ${t.short.bear} 空・中期 ${t.mid.bull} 多 ${t.mid.bear} 空（以面向計）`));
+  } else cards.push(card("sig", "綜合判讀", big("-"), "綜合分析尚未產生"));
+  // 2 加權指數、3 漲跌家數
   if (mb) {
-    const x = mb.twse, pct = x.change / (x.index - x.change) * 100;
-    cards.push(card("mkt", "加權指數", big(num(x.index, 2)) + `<p class="${cls(x.change)}">${sg(x.change, 2)}（${sg(pct, 2)}%）</p>`,
-      `成交 ${num(x.value, 0)} 億・20 日量比 ${mb.ratio20 == null ? "-" : num(mb.ratio20, 2) + " 倍"}`));
+    const x = mb.twse, pct = x.change / (x.index - x.change) * 100, ma = item("加權指數 vs 20 日均線", "mid");
+    cards.push(card("trend", "加權指數", big(num(x.index, 2)) + `<p class="${cls(x.change)}">${sg(x.change, 2)}（${sg(pct, 2)}%）</p>`,
+      `成交 ${num(x.value, 0)} 億${ma ? `・20 日均線${ma.bias > 0 ? "之上" : "之下"} ${ma.value}` : ""}`, spark(col("index"))));
     const t = mb.trend[mb.trend.length - 1];
     cards.push(card("mkt", "漲跌家數（上市＋上櫃）", `<p class="bd"><span class="up">上漲 ${num(t.up)}</span><span class="down">下跌 ${num(t.down)}</span></p>` +
       `<div class="ratio"><i class="u" style="width:${t.up / (t.up + t.down) * 100}%"></i><i class="d" style="width:${t.down / (t.up + t.down) * 100}%"></i></div>`,
       `騰落 ${sg(t.net)}・近 10 日累計 ${sg(t.adl)}`));
   }
-  const fi = item("外資現貨");
-  if (fi) cards.push(card("fi", "外資現貨（上市）", big(fi.value, fi.value.startsWith("-") ? "down" : "up"), fi.detail));
+  // 4 外資現貨
+  const fi = item("外資現貨"), fi20 = item("外資現貨 20 日累計", "mid");
+  if (fi) cards.push(card("fi", "外資現貨（上市）", big(fi.value, fi.value.startsWith("-") ? "down" : "up"), fi20 ? `20 日累計 ${fi20.value}` : fi.detail, spark(col("fi"), "bar")));
+  // 5 外資台指期、6 散戶多空比
   if (f) {
     const x = f.inst.find(r => r.name === "外資");
-    cards.push(card("fut", "外資台指期淨未平倉", big(sg(x.fut) + " 口", cls(x.fut)), `較前日 ${sg(x.fut_d)} 口・資料 ${f.date}`));
-    const r = f.retail?.rows.find(z => z.code === "MTX");
-    if (r) cards.push(card("fut", "小台散戶多空比", big(sg(r.ratio, 2) + "%", cls(r.ratio)), `較前日 ${sg(r.ratio_d, 2)} 個百分點・散戶淨 ${sg(r.net)} 口`));
-    const o = f.opt?.series?.[0];
-    if (o) cards.push(card("opt", `最近結算 ${o.label}`,
-      `<p class="bd"><span>壓力 <b>${o.resist[0] ? num(o.resist[0].strike) : "-"}</b></span><span>支撐 <b>${o.support[0] ? num(o.support[0].strike) : "-"}</b></span></p>`,
-      `加權 ${num(f.opt.ref, 0)}・此系列 P/C ${o.pc == null ? "-" : num(o.pc, 1) + "%"}`));
+    cards.push(card("fut", "外資台指期淨未平倉", big(sg(x.fut) + " 口", cls(x.fut)), `較前日 ${sg(x.fut_d)} 口・資料 ${f.date}`, spark(col("fi_oi"))));
+    const r = f.retail?.rows.find(z => z.code === "MTX"), m = item("小台散戶多空比 60 日位置", "mid");
+    if (r) cards.push(card("fut", "小台散戶多空比", big(sg(r.ratio, 2) + "%", cls(r.ratio)),
+      `較前日 ${sg(r.ratio_d, 2)} 個百分點${m ? "・" + m.detail.split("，")[1].split("；")[0].replace("目前在", "60 日") : ""}`, spark(col("MTX"))));
   }
-  const top3 = (rows, t) => rows.slice(0, 3).map(r => `<li><span>${r.name}</span><b class="${cls(r.fi_today)}">${sg(r.fi_today)}</b></li>`).join("") || `<li class="mute">${t}</li>`;
+  // 7 融資餘額
+  const fin = item("融資餘額（上市＋上櫃）"), finm = item("融資餘額 60 日位置", "mid");
+  cards.push(card("trend", "融資餘額（上市＋上櫃）", fin ? big(fin.value, cls(parseFloat(fin.value))) : big("-"),
+    fin ? `${fin.detail.split("；")[0]}${finm ? "・" + finm.detail.split("，")[1].split("；")[0].replace("目前在", "60 日").replace("目前在", "60 日") : ""}` : "約晚上 9 點公布", spark(col("fin_amt"))));
+  // 8 借券賣出
+  const sb = s?.sbl;
+  cards.push(card("sbl", "借券賣出餘額（全市場）", sb ? big(sg(sb.chg) + " 張", cls(sb.chg)) : big("-"),
+    sb ? `餘額 ${num(sb.bal)} 張（${sg(sb.pct, 2)}%）${sb.top.length ? "・增加最多：" + sb.top.map(x => x.name).join("、") : ""}` : "約晚上 9 點後公布"));
+  // 9 選擇權結算
+  const o = f?.opt?.series?.find(x => x.exp >= twToday()) || f?.opt?.series?.[0];
+  if (o) cards.push(card("opt", `最近結算 ${o.label}`,
+    `<p class="bd"><span>壓力 <b>${o.resist[0] ? num(o.resist[0].strike) : "-"}</b></span><span>支撐 <b>${o.support[0] ? num(o.support[0].strike) : "-"}</b></span></p>`,
+    `加權 ${num(f.opt.ref, 0)}・此系列 P/C ${o.pc == null ? "-" : num(o.pc, 1) + "%"}`));
+  // 10 外資買賣超前 3
+  const top3 = (rs, t) => rs.slice(0, 3).map(r => `<li><span>${r.name}</span><b class="${cls(r.fi_today)}">${sg(r.fi_today)}</b></li>`).join("") || `<li class="mute">${t}</li>`;
   cards.push(card("fi", "外資買賣超前 3 名（張）",
     `<p class="t3h">買超</p><ol class="t3">${top3(d.fi_buy, "無")}</ol><p class="t3h">賣超</p><ol class="t3">${top3(d.fi_sell, "無")}</ol>`));
+  // 11 今日事件
+  if (ev && !ev.error) {
+    const today = twToday(), hot = hotCodes();
+    const nd = ev.news_dates[0], nToday = ev.news.filter(x => x.d === nd), nHot = nToday.filter(x => hot.has(x.code)).length;
+    const nextEx = ev.exright.find(x => x.d > today)?.d, exN = nextEx ? ev.exright.filter(x => x.d === nextEx).length : 0;
+    cards.push(card("news", "今日事件", `<ul class="evl"><li><span>重大訊息 ${nd ? (nd === today ? "今天" : md(nd)) : ""}</span><b>${nToday.length} 則</b></li><li><span>其中熱門股</span><b>${nHot} 則</b></li>` +
+      `<li><span>下次除權息${nextEx ? " " + md(nextEx) : ""}</span><b>${exN} 檔</b></li>${o ? `<li><span>下次結算</span><b>${o.label.split("（")[0]}</b></li>` : ""}</ul>`));
+  } else cards.push(card("news", "今日事件", big("…"), "載入中"));
+  // 12 盤前夜盤
+  if (pre && !pre.error && pre.date === twToday()) {
+    const n = pre.night.find(x => x.code === "TX");
+    cards.push(card("pre", "盤前：台指期夜盤", big(num(n.close), cls(n.change)) + `<p class="${cls(n.change)}">${sg(n.change)}（${sg(n.pct, 2)}%）</p>`,
+      `更新 ${pre.updated_at.slice(11, 16)}・美元/台幣 ${num(pre.fx[0].values.at(-1), 3)}`));
+  } else {
+    cards.push(card("pre", "盤前：台指期夜盤", big("-"), pre && !pre.error ? `目前是 ${md(pre.date)} 的盤前資料；交易日早上 07:40 更新` : "交易日早上 07:40 更新"));
+  }
   return `<h2 class="sec">今日重點（股票 ${d.date}${f ? `・期貨 ${f.date}` : ""}）</h2><div class="sc opt"><div class="home">${cards.join("")}</div>
-    <p class="fn">點卡片看詳細資料。綜合判讀依固定規則統計各項訊號，不是預測，也不構成投資建議。</p></div>`;
+    <p class="fn">點卡片看詳細資料。小走勢圖為近 20 個交易日。綜合判讀依固定規則統計各面向訊號，不是預測，也不構成投資建議。</p></div>`;
 }
 
 tab = location.hash.slice(1) || "home";

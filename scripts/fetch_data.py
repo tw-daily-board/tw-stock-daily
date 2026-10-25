@@ -652,23 +652,31 @@ def main():
             out, fresh = old, False
             break
     attach_fut(out, (old or {}).get("fut"))
-    # 綜合訊號（含融資融券，約晚上才公布；21:00 前的排程會標示尚未公布）
+    # 順序：融資融券（晚間公布，會等待）→ 趨勢（要用當天融資）→ 借券賣出 → 綜合訊號（短線＋中期都用到前面三項）
     import fetch_signals
+    import fetch_trend
+    margin_wait = int(os.environ.get("MARGIN_WAIT_MINUTES", "0"))
+    chips, chips_err = fetch_signals.load(get_json, out, REQUEST_GAP, margin_wait, warn)
+    trend = None
+    if fresh and CTX.get("turnover"):
+        try:
+            trend = fetch_trend.build(get_json, CTX["turnover"], today, REQUEST_GAP, warn)
+            fetch_trend.write(trend)
+        except Exception as e:  # noqa: BLE001
+            warn("趨勢資料未更新", e)
+    if trend is None:
+        try:
+            trend = json.loads(fetch_trend.OUT.read_text())
+        except (OSError, ValueError):
+            trend = None
+    # 借券賣出餘額：和融資融券差不多時間公布，等待時間共用 MARGIN_WAIT_MINUTES
+    if fresh:
+        update_sbl(out, started + 60 * margin_wait, "margin" in require)
     try:
-        out["signals"] = fetch_signals.build(get_json, out, REQUEST_GAP, int(os.environ.get("MARGIN_WAIT_MINUTES", "0")), warn)
+        out["signals"] = fetch_signals.compose(out, chips, chips_err, trend)
     except Exception as e:  # noqa: BLE001
         warn("綜合訊號未更新", e)
         out["signals"] = (old or {}).get("signals")
-    # 借券賣出餘額：和融資融券差不多時間公布，等待時間共用 MARGIN_WAIT_MINUTES
-    # 趨勢（近 60 個交易日，給趨勢分頁畫圖）：放在融資融券之後，晚間那輪就能包含當天的融資餘額
-    if fresh and CTX.get("turnover"):
-        import fetch_trend
-        try:
-            fetch_trend.write(fetch_trend.build(get_json, CTX["turnover"], today, REQUEST_GAP, warn))
-        except Exception as e:  # noqa: BLE001
-            warn("趨勢資料未更新", e)
-    if fresh:
-        update_sbl(out, started + 60 * int(os.environ.get("MARGIN_WAIT_MINUTES", "0")), "margin" in require)
     (DATA / "latest.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
     if fresh:
         save_history(out)

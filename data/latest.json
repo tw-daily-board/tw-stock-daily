@@ -5750,132 +5750,399 @@
   "date": "2026-10-22",
   "fut_date": "2026-10-22",
   "chips_date": "2026-10-22",
-  "generated_at": "2026-10-25T15:44:08+08:00",
+  "trend_date": "2026-10-22",
+  "generated_at": "2026-10-25T16:12:10+08:00",
   "items": [
    {
     "group": "現貨法人",
     "name": "外資現貨",
     "value": "-815.82 億",
     "detail": "連續賣超 1 天；近 10 日累計 -8,977.06 億",
-    "bias": -1
+    "bias": -1,
+    "dim": "spot",
+    "term": "short",
+    "scored": true
    },
    {
     "group": "現貨法人",
     "name": "投信現貨",
     "value": "+94.92 億",
     "detail": "連續買超 10 天；近 10 日累計 +1,563.25 億",
-    "bias": 1
+    "bias": 1,
+    "dim": "spot",
+    "term": "short",
+    "scored": true
    },
    {
     "group": "現貨法人",
     "name": "自營商現貨",
     "value": "-273.77 億",
     "detail": "連續賣超 10 天；近 10 日累計 -3,434.99 億",
-    "bias": 0
+    "bias": 0,
+    "dim": null,
+    "term": "short",
+    "scored": false
+   },
+   {
+    "group": "現貨法人",
+    "name": "台積電外資",
+    "value": "-12,695 張",
+    "detail": "近 10 日 -148,325 張；收盤 2,385（-1.45%）",
+    "bias": -1,
+    "dim": "spot",
+    "term": "short",
+    "scored": true
+   },
+   {
+    "group": "現貨法人",
+    "name": "前 20 大權值股外資合計",
+    "value": "-32,864 張",
+    "detail": "外資買超 12 檔、賣超 8 檔",
+    "bias": -1,
+    "dim": "spot",
+    "term": "short",
+    "scored": true
+   },
+   {
+    "group": "借券賣出",
+    "name": "全市場借券賣出餘額",
+    "value": "-565 張",
+    "detail": "餘額 14,549,860 張（-0.00%）；當日借券賣出 216,728 張、還券 217,297 張；餘額增加代表放空部位變多",
+    "bias": 0,
+    "dim": "spot",
+    "term": "short",
+    "scored": true
    },
    {
     "group": "市場廣度",
     "name": "騰落（上市＋上櫃）",
     "value": "-1,022 家",
     "detail": "上漲 393／下跌 1,415；近 5 日合計 -1,581",
-    "bias": -1
+    "bias": -1,
+    "dim": "breadth",
+    "term": "short",
+    "scored": true
    },
    {
     "group": "市場廣度",
     "name": "量能",
     "value": "0.96 倍（20 日）",
     "detail": "上市成交 9,334 億，量平下跌；5 日量比 0.94 倍",
-    "bias": 0
+    "bias": 0,
+    "dim": "breadth",
+    "term": "short",
+    "scored": true
    },
    {
     "group": "市場廣度",
     "name": "漲停／跌停家數",
     "value": "20／16",
     "detail": "上市＋上櫃股票",
-    "bias": 0
+    "bias": 0,
+    "dim": "breadth",
+    "term": "short",
+    "scored": true
+   },
+   {
+    "group": "市場廣度",
+    "name": "資金集中類股",
+    "value": "電子零組件、半導體、光電",
+    "detail": "電子零組件 占 34.0%（-3.64%）；半導體 占 29.4%（-1.91%）；光電 占 8.9%（-2.03%）",
+    "bias": 0,
+    "dim": null,
+    "term": "short",
+    "scored": false
    },
    {
     "group": "融資融券",
     "name": "融資餘額（上市＋上櫃）",
     "value": "-138.32 億",
     "detail": "餘額 8,465 億；連續減少 1 天；近 9 日 -277.68 億",
-    "bias": 0
+    "bias": 0,
+    "dim": "sentiment",
+    "term": "short",
+    "scored": true
    },
    {
     "group": "融資融券",
     "name": "券資比（上市）",
     "value": "2.25%",
     "detail": "融券 216,539 張／融資 9,604,402 張；前一日 2.00%",
-    "bias": 0
+    "bias": 0,
+    "dim": null,
+    "term": "short",
+    "scored": false
    },
    {
     "group": "期貨",
     "name": "外資台指淨未平倉",
     "value": "-87,297 口",
     "detail": "較前日 -1,225 口；連續淨空增加 1 天",
-    "bias": -1
+    "bias": -1,
+    "dim": "fut",
+    "term": "short",
+    "scored": true
    },
    {
     "group": "期貨",
     "name": "十大特定法人台指近月",
     "value": "+11,568 口",
     "detail": "較前日 +692 口；其他月 -1,561 口",
-    "bias": 0
-   },
-   {
-    "group": "期貨",
-    "name": "小台散戶多空比（反向）",
-    "value": "+33.81%",
-    "detail": "前 4 日平均 +23.86%；散戶淨部位 +13,087 口（較前日 +2,851）；散戶越偏多越視為偏空",
-    "bias": 0
+    "bias": 0,
+    "dim": "fut",
+    "term": "short",
+    "scored": true
    },
    {
     "group": "期貨",
     "name": "外資選擇權（買權－賣權淨金額）",
     "value": "-2.18 億",
     "detail": "買權 -0.81 億、賣權 +1.37 億（淨未平倉金額）",
-    "bias": -1
+    "bias": -1,
+    "dim": "fut",
+    "term": "short",
+    "scored": true
+   },
+   {
+    "group": "期貨",
+    "name": "小台散戶多空比（反向）",
+    "value": "+33.81%",
+    "detail": "前 4 日平均 +23.86%；散戶淨部位 +13,087 口（較前日 +2,851）；散戶越偏多越視為偏空",
+    "bias": 0,
+    "dim": "sentiment",
+    "term": "short",
+    "scored": true
    },
    {
     "group": "選擇權",
     "name": "全市場 P/C（未平倉）",
     "value": "66.18%",
     "detail": "前 5 日平均 63.81%；P/C 上升代表賣權（支撐）部位相對增加",
-    "bias": 0
+    "bias": 0,
+    "dim": "sentiment",
+    "term": "short",
+    "scored": true
    },
    {
     "group": "選擇權",
     "name": "最近結算 10/23（五）週選",
     "value": "加權 46,041",
     "detail": "壓力 49,000（距 2,959 點）；支撐 46,000（距 41 點）",
-    "bias": 0
+    "bias": 0,
+    "dim": null,
+    "term": "short",
+    "scored": false
    },
    {
-    "group": "權值股",
-    "name": "台積電外資",
-    "value": "-12,695 張",
-    "detail": "近 10 日 -148,325 張；收盤 2,385（-1.45%）",
-    "bias": -1
+    "group": "指數位置",
+    "name": "加權指數 vs 20 日均線",
+    "value": "-4.22%",
+    "detail": "20 日均線 48,072；收盤 46,041.43，在均線之下",
+    "bias": -1,
+    "dim": "position",
+    "term": "mid",
+    "scored": true
    },
    {
-    "group": "權值股",
-    "name": "前 20 大權值股外資合計",
-    "value": "-32,864 張",
-    "detail": "外資買超 12 檔、賣超 8 檔",
-    "bias": -1
+    "group": "指數位置",
+    "name": "加權指數 vs 60 日均線",
+    "value": "-0.36%",
+    "detail": "60 日均線 46,207；收盤 46,041.43，在均線之下",
+    "bias": -1,
+    "dim": "position",
+    "term": "mid",
+    "scored": true
    },
    {
-    "group": "權值股",
-    "name": "資金集中類股",
-    "value": "電子零組件、半導體、光電",
-    "detail": "電子零組件 占 34.0%（-3.64%）；半導體 占 29.4%（-1.91%）；光電 占 8.9%（-2.03%）",
-    "bias": 0
+    "group": "現貨法人",
+    "name": "外資現貨 20 日累計（上市）",
+    "value": "-8,030 億",
+    "detail": "近 20 個有資料的交易日；平均每日 -402 億",
+    "bias": -1,
+    "dim": "spot",
+    "term": "mid",
+    "scored": true
+   },
+   {
+    "group": "借券賣出",
+    "name": "全市場借券賣出餘額 5 日變化",
+    "value": "-0.66%",
+    "detail": "10/15 起 -96,616 張；增加代表放空部位變多",
+    "bias": 0,
+    "dim": "spot",
+    "term": "mid",
+    "scored": true
+   },
+   {
+    "group": "期貨",
+    "name": "外資台指淨未平倉 60 日位置",
+    "value": "-87,297 口",
+    "detail": "60 日區間 -97,582～-74,081 口，目前在第 17 百分位；20 日變化 -13,216 口；接近區間高檔（淨空最少）偏多、低檔偏空",
+    "bias": 0,
+    "dim": "fut",
+    "term": "mid",
+    "scored": true
+   },
+   {
+    "group": "市場廣度",
+    "name": "騰落線 vs 指數（20 日）",
+    "value": "-3,908 家",
+    "detail": "指數 20 日 -1,677 點；與指數同方向",
+    "bias": -1,
+    "dim": "breadth",
+    "term": "mid",
+    "scored": true
+   },
+   {
+    "group": "情緒槓桿",
+    "name": "小台散戶多空比 60 日位置（反向）",
+    "value": "33.81%",
+    "detail": "60 日區間 -7.81～33.81%，目前在第 100 百分位；散戶極度偏多視為偏空、極度偏空視為偏多",
+    "bias": -1,
+    "dim": "sentiment",
+    "term": "mid",
+    "scored": true
+   },
+   {
+    "group": "情緒槓桿",
+    "name": "P/C 比 60 日位置",
+    "value": "66.18%",
+    "detail": "60 日區間 60.84～123.58%，目前在第 7 百分位；P/C 高代表賣權（支撐）部位多，視為偏多",
+    "bias": -1,
+    "dim": "sentiment",
+    "term": "mid",
+    "scored": true
+   },
+   {
+    "group": "情緒槓桿",
+    "name": "融資餘額 60 日位置（反向）",
+    "value": "8,465 億",
+    "detail": "60 日區間 7,293～8,817 億，目前在第 67 百分位；融資在高檔代表槓桿偏高，視為偏空",
+    "bias": 0,
+    "dim": "sentiment",
+    "term": "mid",
+    "scored": true
    }
   ],
+  "terms": {
+   "short": {
+    "name": "短線",
+    "verdict": "偏空",
+    "bull": 0,
+    "bear": 3,
+    "neutral": 1,
+    "dims": [
+     {
+      "key": "spot",
+      "name": "現貨籌碼",
+      "lean": -1,
+      "bull": 1,
+      "bear": 3,
+      "n": 5
+     },
+     {
+      "key": "fut",
+      "name": "期權籌碼",
+      "lean": -1,
+      "bull": 0,
+      "bear": 2,
+      "n": 3
+     },
+     {
+      "key": "breadth",
+      "name": "市場廣度",
+      "lean": -1,
+      "bull": 0,
+      "bear": 1,
+      "n": 3
+     },
+     {
+      "key": "sentiment",
+      "name": "情緒槓桿",
+      "lean": 0,
+      "bull": 0,
+      "bear": 0,
+      "n": 3
+     }
+    ]
+   },
+   "mid": {
+    "name": "中期",
+    "verdict": "偏空",
+    "bull": 0,
+    "bear": 4,
+    "neutral": 1,
+    "dims": [
+     {
+      "key": "position",
+      "name": "指數位置",
+      "lean": -1,
+      "bull": 0,
+      "bear": 2,
+      "n": 2
+     },
+     {
+      "key": "spot",
+      "name": "現貨籌碼",
+      "lean": -1,
+      "bull": 0,
+      "bear": 1,
+      "n": 2
+     },
+     {
+      "key": "fut",
+      "name": "期權籌碼",
+      "lean": 0,
+      "bull": 0,
+      "bear": 0,
+      "n": 1
+     },
+     {
+      "key": "breadth",
+      "name": "市場廣度",
+      "lean": -1,
+      "bull": 0,
+      "bear": 1,
+      "n": 1
+     },
+     {
+      "key": "sentiment",
+      "name": "情緒槓桿",
+      "lean": -1,
+      "bull": 0,
+      "bear": 2,
+      "n": 3
+     }
+    ]
+   }
+  },
+  "sbl": {
+   "date": "2026-10-22",
+   "bal": 14549860,
+   "chg": -565,
+   "pct": -0.0,
+   "top": [
+    {
+     "code": "2883",
+     "name": "凱基金",
+     "d1": 9754
+    },
+    {
+     "code": "6770",
+     "name": "力積電",
+     "d1": 6096
+    },
+    {
+     "code": "2492",
+     "name": "華新科",
+     "d1": 4757
+    }
+   ]
+  },
   "score": {
-   "bull": 1,
-   "bear": 6,
-   "neutral": 10,
+   "bull": 0,
+   "bear": 3,
+   "neutral": 1,
    "verdict": "偏空"
   }
  }
