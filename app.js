@@ -686,6 +686,113 @@ function renderBig() {
     <p class="mute">依「${m[1]}」排序，取前 100 檔；只列成交量 100 張以上。增減單位為百分點。</p></div>
     <div class="sc">${t.html}<p class="fn">資料來源：集保結算所「集保戶股權分散表」（每週最後一個交易日的持股，通常週五晚間或週六公布）。千張大戶＝單一集保戶持有 1,000 張（1,000,001 股）以上；400 張以上＝400,001 股以上。週漲跌幅為兩次集保資料日之間的還原股價漲跌。大戶比例上升、股東人數減少，通常解讀為籌碼集中；集保戶包含法人、信託與券商保管帳戶，不等於自然人大戶。</p></div>`;
 }
+// ---- 趨勢（data/trend.json）：每張圖一個量、一條 Y 軸，日期對齊；點或滑過任一張，所有圖同一天一起標示 ----
+const trState = { days: 60, sel: null };
+const TR_CHARTS = [
+  { k: "index", t: "加權指數", type: "line", f: v => num(v, 2) },
+  { k: "fi", t: "外資現貨買賣超（上市，億元）", type: "bar", f: v => sg(v, 2) + " 億" },
+  { k: "fi_oi", t: "外資台指期淨未平倉（口）", type: "line", f: v => sg(v) + " 口", zero: true },
+  { k: ["MTX", "TMF"], t: "散戶多空比（%）", type: "line", names: ["小台", "微台"], colors: ["var(--call)", "var(--put)"], f: v => sg(v, 2) + "%", zero: true },
+  { k: "adl", t: "騰落線（上市＋上櫃，漲家數－跌家數累計）", type: "line", f: v => sg(v), sub: r => r.up == null ? "" : `漲 ${num(r.up)}・跌 ${num(r.down)}` },
+  { k: "fin_amt", t: "融資餘額（上市＋上櫃，億元）", type: "line", f: v => num(v, 2) + " 億" },
+  { k: "pc_oi", t: "選擇權 P/C 比（未平倉，%）", type: "line", f: v => num(v, 2) + "%" },
+];
+function niceTicks(lo, hi) {
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const raw = (hi - lo) / 3, p = 10 ** Math.floor(Math.log10(raw)), step = [1, 2, 2.5, 5, 10].map(m => m * p).find(s => s >= raw);
+  const a = Math.floor(lo / step) * step, out = [];
+  for (let v = a; v <= hi + step * 1e-9; v += step) out.push(+v.toFixed(10));
+  if (out.at(-1) < hi) out.push(out.at(-1) + step);
+  return out;
+}
+const compact = v => Math.abs(v) >= 1e5 ? num(v / 1e4, 0) + "萬" : num(v, Math.abs(v) < 10 && v % 1 ? 1 : 0);
+function trChart(c, rows, W, ci) {
+  const keys = Array.isArray(c.k) ? c.k : [c.k], H = 150, L = 50, R = 10, T = 10, B = 22, pw = W - L - R, ph = H - T - B;
+  const vals = rows.flatMap(r => keys.map(k => r[k])).filter(v => v != null);
+  if (!vals.length) return `<div class="tc"><h3>${c.t}</h3><p class="mute">尚無資料</p></div>`;
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (c.type === "bar" || c.zero) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+  const ticks = niceTicks(lo, hi); lo = ticks[0]; hi = ticks.at(-1);
+  const n = rows.length, bw = pw / n, x = i => L + bw * (i + 0.5), y = v => T + ph - (v - lo) / (hi - lo) * ph;
+  let g = ticks.map(v => `<line class="gd${v === 0 && lo < 0 ? " z" : ""}" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="yl" x="${L - 6}" y="${y(v) + 4}">${compact(v)}</text>`).join("");
+  const xi = [0, Math.floor((n - 1) / 2), n - 1];
+  g += xi.map((i, j) => `<text class="xl" x="${x(i)}" y="${H - 6}" text-anchor="${["start", "middle", "end"][j]}">${md(rows[i].date)}</text>`).join("");
+  let marks = "";
+  if (c.type === "bar") {
+    const w = Math.max(1, Math.min(24, bw - 2)), y0 = y(0);
+    marks = rows.map((r, i) => {
+      const v = r[keys[0]];
+      if (v == null || v === 0) return "";
+      const top = Math.min(y(v), y0), h = Math.max(1, Math.abs(y(v) - y0)), rr = Math.min(4, w / 2, h);
+      // 4px 圓角在資料端、基線端是直角
+      const x0 = x(i) - w / 2, x1 = x0 + w;
+      const d = v > 0 ? `M${x0},${y0}V${top + rr}Q${x0},${top} ${x0 + rr},${top}H${x1 - rr}Q${x1},${top} ${x1},${top + rr}V${y0}Z`
+        : `M${x0},${y0}V${top + h - rr}Q${x0},${top + h} ${x0 + rr},${top + h}H${x1 - rr}Q${x1},${top + h} ${x1},${top + h - rr}V${y0}Z`;
+      return `<path class="${v > 0 ? "bu" : "bd2"}" d="${d}"/>`;
+    }).join("");
+  } else {
+    marks = keys.map((k, si) => {
+      let d = "", pen = false;
+      rows.forEach((r, i) => { if (r[k] == null) { pen = false; return; } d += `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(r[k]).toFixed(1)}`; pen = true; });
+      const last = rows.map((r, i) => [r[k], i]).filter(([v]) => v != null).at(-1);
+      const col = c.colors ? c.colors[si] : "var(--accent)";
+      return `<path class="ln" style="stroke:${col}" d="${d}"/>` + (last ? `<circle class="ed" cx="${x(last[1])}" cy="${y(last[0])}" r="4" style="fill:${col}"/>` : "");
+    }).join("");
+  }
+  const legend = c.names ? `<span class="tlg">${c.names.map((nm, i) => `<span><i style="background:${c.colors[i]}"></i>${nm}</span>`).join("")}</span>` : "";
+  return `<div class="tc" data-ci="${ci}"><h3>${c.t}${legend}</h3><p class="tv" data-tv="${ci}"></p>
+    <svg class="tch" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" data-n="${n}" data-l="${L}" data-bw="${bw}" role="img" aria-label="${c.t}">${g}${marks}
+    <line class="xh" data-xh="${ci}" x1="0" x2="0" y1="${T}" y2="${T + ph}" visibility="hidden"/><rect class="hit" x="${L}" y="0" width="${pw}" height="${H}"/></svg></div>`;
+}
+function trValue(c, r) {
+  const keys = Array.isArray(c.k) ? c.k : [c.k];
+  const v = keys.map((k, i) => r[k] == null ? null : `${c.names ? `<span class="mute2">${c.names[i]}</span> ` : ""}<b>${c.f(r[k])}</b>`);
+  return `<span class="mute2">${mdw(r.date)}</span> ` + (v.every(x => x == null) ? '<span class="mute2">當天尚無資料</span>' : v.map(x => x ?? "-").join("　")) + (c.sub && c.sub(r) ? ` <span class="mute2">${c.sub(r)}</span>` : "");
+}
+function renderTrend() {
+  const t = need("trend", ["trend"]);
+  if (!t) return '<div class="empty">載入中…</div>';
+  if (t.error) return '<div class="empty">趨勢資料尚未產生，之後排程會自動補上。</div>';
+  const rows = t.rows.slice(-trState.days);
+  // 圖寬：分頁內容寬減掉卡片內距；寬螢幕兩欄
+  const cw = (document.querySelector(".scroll")?.clientWidth || 360) - 28, two = window.innerWidth >= 1100;
+  const W = Math.max(250, Math.floor((two ? (cw - 10) / 2 : cw) - 26));
+  const charts = TR_CHARTS.map((c, i) => trChart(c, rows, W, i)).join("");
+  const cols = [["date", "日期"], ["index", "加權指數"], ["fi", "外資現貨(億)"], ["fi_oi", "外資台指淨OI"], ["MTX", "小台散戶%"], ["TMF", "微台散戶%"], ["up", "上漲"], ["down", "下跌"], ["adl", "騰落線"], ["fin_amt", "融資餘額(億)"], ["pc_oi", "P/C(未平倉)%"]];
+  const fmt = (k, v) => v == null ? "-" : k === "date" ? md(v) : ["fi", "fi_oi", "MTX", "TMF", "adl"].includes(k) ? `<span class="${cls(v)}">${sg(v, ["fi", "MTX", "TMF"].includes(k) ? 2 : 0)}</span>` : num(v, ["index", "fin_amt", "pc_oi"].includes(k) ? 2 : 0);
+  const tbl = `<details class="tv2"><summary>以表格檢視</summary><div class="sc"><table class="ft"><thead><tr>${cols.map(([, h]) => `<th>${h}</th>`).join("")}</tr></thead><tbody>` +
+    rows.slice().reverse().map(r => `<tr>${cols.map(([k]) => `<td>${fmt(k, r[k])}</td>`).join("")}</tr>`).join("") + "</tbody></table></div></details>";
+  return `<h2 class="sec">趨勢（近 ${rows.length} 個交易日，至 ${t.date}）</h2><div class="sc opt">
+    <nav class="optnav">${[20, 60].map(d => btn("data-td", d, `近 ${d} 日`, trState.days === d)).join("")}</nav>
+    <p class="mute">點或滑過任一張圖，所有圖會標出同一天並顯示當天數字。外資買賣超、騰落線與指數放在不同圖、同一條日期軸，方便上下對照。</p>
+    <div class="tgrid">${charts}</div>${tbl}
+    <p class="fn">資料來源：證交所（加權指數、外資買賣超、融資、漲跌家數）、櫃買中心（上櫃融資、漲跌家數）、期交所（外資台指期淨未平倉＝外資及陸資在臺股期貨的多空未平倉淨額；散戶多空比＝（全市場未平倉－法人多單）與（全市場未平倉－法人空單）之差÷全市場未平倉；P/C 比＝賣權未平倉÷買權未平倉）。騰落線從圖上第一天起累計，只看形狀，不看絕對值。融資餘額約晚上 9 點公布，下午時當天會先空著。</p></div>`;
+}
+function bindTrend(box) {
+  const t = store.trend;
+  if (!t || t.error) return;
+  const rows = t.rows.slice(-trState.days);
+  const show = i => {
+    trState.sel = i;
+    box.querySelectorAll("svg.tch").forEach(svg => {
+      const xh = svg.querySelector(".xh"), xx = +svg.dataset.l + +svg.dataset.bw * (i + 0.5);
+      xh.setAttribute("x1", xx); xh.setAttribute("x2", xx); xh.setAttribute("visibility", "visible");
+    });
+    box.querySelectorAll("[data-tv]").forEach(p => { p.innerHTML = trValue(TR_CHARTS[+p.dataset.tv], rows[i]); });
+  };
+  box.querySelectorAll("svg.tch").forEach(svg => {
+    const pick = e => {
+      const r = svg.getBoundingClientRect(), i = Math.floor((e.clientX - r.left - +svg.dataset.l) / +svg.dataset.bw);
+      show(Math.max(0, Math.min(rows.length - 1, i)));
+    };
+    svg.addEventListener("pointermove", pick);
+    svg.addEventListener("pointerdown", pick);
+  });
+  show(trState.sel != null && trState.sel < rows.length ? trState.sel : rows.length - 1);
+}
+let trResize = null;
+window.addEventListener("resize", () => { clearTimeout(trResize); trResize = setTimeout(() => { if (tab === "trend") render(); }, 200); });
+
 function bindNew(box) {
   const set = (sel, fn) => box.querySelectorAll(sel).forEach(b => b.onclick = () => { fn(b); render(); });
   set("[data-nd]", b => { newsState.d = b.dataset.nd; });
@@ -696,8 +803,10 @@ function bindNew(box) {
   set("[data-bk]", b => { sblState.kind = b.dataset.bk; });
   set("[data-gm]", b => { bigState.mode = b.dataset.gm; delete tsort.big; });
   set("[data-gk]", b => { bigState.kind = b.dataset.gk; });
+  set("[data-td]", b => { trState.days = +b.dataset.td; trState.sel = null; });
   box.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
   bindTs(box);
+  if (tab === "trend") bindTrend(box);
 }
 
 function renderFut(f) {
@@ -718,7 +827,7 @@ function renderFut(f) {
       '<p class="fn">淨部位＝十大買方部位－十大賣方部位；特定人＝特定法人，非特定人＝其餘交易人；近月為最近月份契約，其他月含週契約；括號為較前一交易日的變化。</p>');
 }
 
-const NEW_TABS = { pre: renderPre, news: renderNews, exr: renderExr, sbl: renderSbl, big: renderBig };
+const NEW_TABS = { pre: renderPre, news: renderNews, exr: renderExr, sbl: renderSbl, big: renderBig, trend: renderTrend };
 
 function render() {
   const box = document.querySelector(".scroll");
@@ -786,7 +895,7 @@ siteSel.onchange = () => {
 const ICON = p => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 const GROUPS = [
   ["home", "總覽", ICON('<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>'), [["home", "今日重點"], ["pre", "盤前速覽"], ["sig", "綜合訊號"]]],
-  ["mkt", "大盤", ICON('<path d="M3 20h18"/><path d="M4 16l5-5 4 3 7-8"/>'), [["mkt", "市場強弱"]]],
+  ["mkt", "大盤", ICON('<path d="M3 20h18"/><path d="M4 16l5-5 4 3 7-8"/>'), [["mkt", "市場強弱"], ["trend", "趨勢"]]],
   ["fo", "期權", ICON('<path d="M7 20V5"/><path d="M3 9l4-4 4 4"/><path d="M17 4v15"/><path d="M13 15l4 4 4-4"/>'), [["fut", "台指期"], ["opt", "選擇權支撐壓力"]]],
   ["chip", "籌碼", ICON('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>'), [["cap", "權值股"], ["stocks", "熱門個股"], ["etfs", "熱門 ETF"], ["fi", "外資買賣超"], ["fi_etf", "ETF 外資"], ["scr", "籌碼篩選"], ["sbl", "借券賣出"], ["big", "大戶持股"]]],
   ["pick", "選股", ICON('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>'), [["val", "營收估值"], ["lt", "長期體質"]]],

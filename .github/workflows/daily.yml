@@ -70,7 +70,7 @@ jobs:
           # 加上版本號，避免瀏覽器用到舊的 app.js／style.css（新舊混用會讓頁面壞掉）
           sed -i "s#style.css\"#style.css?v=${GITHUB_SHA::7}\"#; s#app.js\"#app.js?v=${GITHUB_SHA::7}\"#" _site/index.html
           grep -q "app.js?v=" _site/index.html
-          rm -rf _site/data/inst _site/data/fut _site/data/history _site/data/market _site/data/chips _site/data/quotes _site/data/revenue _site/data/valhist _site/data/news _site/data/sbl _site/data/tdcc
+          rm -rf _site/data/inst _site/data/fut _site/data/history _site/data/market _site/data/chips _site/data/quotes _site/data/revenue _site/data/valhist _site/data/news _site/data/sbl _site/data/tdcc _site/data/trend
       - uses: actions/upload-pages-artifact@v5
         if: ${{ !cancelled() }}
         with:

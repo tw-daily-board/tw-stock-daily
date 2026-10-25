@@ -44,6 +44,9 @@ UA = {
 }
 
 
+CTX = {}   # build() 抓到、後面步驟還要用的資料（例如 FMTQIK 交易日清單）
+
+
 class NotReady(RuntimeError):
     """資料尚未公布（不是程式或網路錯誤）：提早的排程遇到時略過，不讓整個執行失敗。"""
 
@@ -364,6 +367,7 @@ def build():
     turnover, qall = None, None
     try:
         turnover = fetch_market.fetch_turnover(get_json, trade_date, REQUEST_GAP, months=4)
+        CTX["turnover"] = turnover
         price_dates = [date.fromisoformat(r["date"]) for r in reversed(turnover)][:fetch_value.PRICE_DAYS]
         if price_dates[:len(days)] != [d for d, _ in days]:
             raise RuntimeError(f"交易日清單與法人快取日期不一致：{price_dates[:3]} vs {[d for d, _ in days][:3]}")
@@ -656,6 +660,13 @@ def main():
         warn("綜合訊號未更新", e)
         out["signals"] = (old or {}).get("signals")
     # 借券賣出餘額：和融資融券差不多時間公布，等待時間共用 MARGIN_WAIT_MINUTES
+    # 趨勢（近 60 個交易日，給趨勢分頁畫圖）：放在融資融券之後，晚間那輪就能包含當天的融資餘額
+    if fresh and CTX.get("turnover"):
+        import fetch_trend
+        try:
+            fetch_trend.write(fetch_trend.build(get_json, CTX["turnover"], today, REQUEST_GAP, warn))
+        except Exception as e:  # noqa: BLE001
+            warn("趨勢資料未更新", e)
     if fresh:
         update_sbl(out, started + 60 * int(os.environ.get("MARGIN_WAIT_MINUTES", "0")), "margin" in require)
     (DATA / "latest.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
