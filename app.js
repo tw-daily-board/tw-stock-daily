@@ -178,7 +178,7 @@ function renderMarket(m) {
 
 // ---- 綜合分析：規則式訊號表 ----
 const vcls = v => v === "偏多" ? "up" : v === "偏空" ? "down" : "";
-const leanTag = b => b > 0 ? '<span class="tag up">偏多</span>' : b < 0 ? '<span class="tag down">偏空</span>' : '<span class="tag nt">中性</span>';
+const leanTag = b => b > 0 ? '<span class="tag up">偏多</span>' : b < 0 ? '<span class="tag down">偏空</span>' : '<span class="tag neu">中性</span>';
 function termBox(t) {
   const dims = t.dims.map(d => `<li><span>${d.name}</span>${leanTag(d.lean)}<span class="mute2">${d.bull} 多・${d.bear} 空・${d.n - d.bull - d.bear} 中性</span></li>`).join("");
   return `<div><h3>${t.name}判讀</h3><p class="big ${vcls(t.verdict)}">${t.verdict}</p>
@@ -195,7 +195,7 @@ function renderSignals(s) {
       const gname = i.dim ? DN[i.dim] : "資訊（不計分）";
       const g = gname === last ? "" : gname;
       last = gname;
-      return `<tr class="${g ? "g1" : ""}"><td class="grpc">${g}</td><td class="name">${i.name}</td><td class="val">${i.value}</td><td>${i.scored ? leanTag(i.bias) : '<span class="tag nt">資訊</span>'}</td><td class="dt">${i.detail}</td></tr>`;
+      return `<tr class="${g ? "g1" : ""}"><td class="grpc">${g}</td><td class="name">${i.name}</td><td class="val">${i.value}</td><td>${i.scored ? leanTag(i.bias) : '<span class="tag neu">資訊</span>'}</td><td class="dt">${i.detail}</td></tr>`;
     }).join("");
     return `<table class="ft sig"><thead><tr><th>面向</th><th>項目</th><th>數值</th><th>判讀</th><th>說明</th></tr></thead><tbody>${rows}</tbody></table>`;
   };
