@@ -99,7 +99,7 @@ const ftable = (title, head, rows, extra = "") =>
   `<h2 class="sec">${title}</h2><div class="sc"><table class="ft"><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>${extra}</div>`;
 
 // 選擇權支撐壓力：最近到期的幾個系列，可切換
-let optSel = 0;
+let optSel = 0, optOpen = null;   // optOpen：點開看口數的履約價（手機沒有滑鼠移上去）
 function renderOpt(o, pc, date) {
   if (!o || !o.series.length) return '<div class="empty">選擇權資料尚未公布，之後排程會自動補上。</div>';
   const s = o.series[Math.min(optSel, o.series.length - 1)];
@@ -115,10 +115,13 @@ function renderOpt(o, pc, date) {
   const rows = s.rows.slice().reverse().map(r => {
     let mark = "";
     if (!marked && r[0] <= o.ref) { marked = true; mark = `<div class="ix"><span>加權 ${num(o.ref, 2)}</span></div>`; }
-    return mark + `<div class="br${hot.has(r[0]) ? " hot" : ""}" title="${tip(r)}">` +
+    const open = optOpen === r[0];
+    return mark + `<div class="br${hot.has(r[0]) ? " hot" : ""}${open ? " on" : ""}" title="${tip(r)}" data-k="${r[0]}" role="button" tabindex="0" aria-expanded="${open}">` +
       `<div class="pl">${lab.has("p" + r[0]) ? `<em>${num(r[2])}</em>` : ""}<i class="put" style="width:${r[2] / max * 100}%"></i></div>` +
       `<div class="k">${num(r[0])}</div>` +
-      `<div class="cl"><i class="call" style="width:${r[1] / max * 100}%"></i>${lab.has("c" + r[0]) ? `<em>${num(r[1])}</em>` : ""}</div></div>`;
+      `<div class="cl"><i class="call" style="width:${r[1] / max * 100}%"></i>${lab.has("c" + r[0]) ? `<em>${num(r[1])}</em>` : ""}</div></div>` +
+      (open ? `<div class="bt"><span class="put">賣權 <b>${num(r[2])}</b> 口${r[4] == null ? "" : ` <span class="${cls(r[4])}">(${sg(r[4])})</span>`}</span>` +
+        `<b class="k">${num(r[0])}</b><span class="call">買權 <b>${num(r[1])}</b> 口${r[3] == null ? "" : ` <span class="${cls(r[3])}">(${sg(r[3])})</span>`}</span></div>` : "");
   }).join("");
   const tbl = `<details class="tv"><summary>以表格檢視</summary><table class="ft"><thead><tr><th>履約價</th><th>買權 OI</th><th>變化</th><th>賣權 OI</th><th>變化</th></tr></thead><tbody>` +
     s.rows.map(r => `<tr><td>${num(r[0])}</td><td>${num(r[1])}</td><td class="${cls(r[3])}">${sg(r[3])}</td><td>${num(r[2])}</td><td class="${cls(r[4])}">${sg(r[4])}</td></tr>`).join("") + "</tbody></table></details>";
@@ -130,7 +133,7 @@ function renderOpt(o, pc, date) {
       <div><h3>支撐：指數以下賣權未平倉最大</h3><ol>${lst(s.support, "以下")}</ol></div>
       <div><h3>此系列 P/C（未平倉）</h3><p class="big">${s.pc == null ? "-" : num(s.pc, 1) + "%"}</p><p class="mute">買權 ${num(s.call_oi)} 口・賣權 ${num(s.put_oi)} 口</p></div>
     </div>
-    <div class="lg"><span><i class="put"></i>賣權未平倉（支撐）</span><span><i class="call"></i>買權未平倉（壓力）</span><span class="mute">加權指數上下 ${Math.round(o.chart_range * 100)}%；滑鼠移到列上看口數與變化</span></div>
+    <div class="lg"><span><i class="put"></i>賣權未平倉（支撐）</span><span><i class="call"></i>買權未平倉（壓力）</span><span class="mute">加權指數上下 ${Math.round(o.chart_range * 100)}%；點任一列（電腦也可滑鼠移上去）看口數與變化</span></div>
     <div class="bf">${rows}</div>${tbl}
     <p class="fn">支撐壓力在加權指數上下 ${Math.round(o.sr_range * 100)}% 內找，排除遠價外舊倉；括號為較前一交易日的未平倉變化。週選分週三（W）與週五（F）到期，月選於每月第三個週三結算。</p>
     ${pcRows ? `<h3 class="pch">全市場 P/C 比（近 10 日）</h3><table class="ft pc"><thead><tr><th>日期</th><th>未平倉</th><th>成交量</th></tr></thead><tbody>${pcRows}</tbody></table>` : ""}
@@ -737,7 +740,19 @@ function render() {
   if (tab in NEW_TABS) { box.innerHTML = NEW_TABS[tab](); bindNew(box); return; }
   if (tab === "opt") {
     box.innerHTML = data.fut ? renderOpt(data.fut.opt, data.fut.pc, data.fut.date) : '<div class="empty">期交所資料尚未公布，之後排程會自動補上。</div>';
-    box.querySelectorAll("[data-opt]").forEach(b => b.onclick = () => { optSel = +b.dataset.opt; render(); });
+    box.querySelectorAll("[data-opt]").forEach(b => b.onclick = () => { optSel = +b.dataset.opt; optOpen = null; render(); });
+    box.querySelectorAll(".br[data-k]").forEach(el => {
+      const tog = () => {
+        const k = +el.dataset.k, y = el.getBoundingClientRect().top;
+        optOpen = optOpen === k ? null : k;
+        render();
+        // 重畫後讓點的那一列留在原本的位置（上面的列收合時畫面不會跳）
+        const now = document.querySelector(`.br[data-k="${k}"]`);
+        if (now) window.scrollBy(0, now.getBoundingClientRect().top - y);
+      };
+      el.onclick = tog;
+      el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tog(); } };
+    });
     return;
   }
   if (tab === "fut") {

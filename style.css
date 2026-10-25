@@ -277,3 +277,13 @@ details.nw[open] summary{color:var(--accent)}
 .nwd p{margin:0 0 6px;word-break:break-word}
 .nwd a{color:var(--accent)}
 @media (min-width:761px){details.nw summary .sj{display:inline;margin-left:6px}}
+/* 選擇權分布圖：點一列展開口數 */
+.br{cursor:pointer;border-radius:3px}
+.br.on{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.bt{display:grid;grid-template-columns:1fr 64px 1fr;align-items:center;font-size:12px;padding:5px 0 7px;margin-bottom:3px;
+  background:color-mix(in srgb,var(--accent) 7%,transparent);border-radius:0 0 4px 4px}
+.bt .put{text-align:right;padding-right:6px}
+.bt .call{padding-left:6px}
+.bt>.put b{color:var(--put)}.bt>.call b{color:var(--call)}
+.bt .k{text-align:center}
+@media (max-width:600px){.br{height:18px}.br .pl,.br .cl,.br i{height:12px}.bt{grid-template-columns:1fr 52px 1fr}}
