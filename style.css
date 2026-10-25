@@ -255,3 +255,25 @@ details.cond summary::-webkit-details-marker{display:none}
 details.cond summary::after{content:" ▸";color:var(--accent)}
 details.cond[open] summary::after{content:" ▾"}
 details.cond p{margin:4px 0 0}
+
+/* ===================== 盤前、事件、借券、大戶 ===================== */
+th[data-tk="name"]{position:sticky;left:0;z-index:3;background:var(--card)}
+table.nt2 td:nth-child(-n+3),table.nt2 th:nth-child(-n+3){text-align:left}
+table.nt2 tr.td0 td{background:color-mix(in srgb,var(--accent) 9%,var(--card))}
+table.nt2 tr.past td{color:var(--mute)}
+button.lk{all:unset;cursor:pointer;color:var(--accent);font-size:12px}
+.sr>div p{margin:2px 0 0;line-height:1.6}
+ul.nl{list-style:none;margin:0;padding:0}
+ul.nl li{padding:6px 0;border-bottom:1px solid var(--line);line-height:1.6}
+ul.nl li:last-child{border-bottom:0}
+ul.nl .fg,details.nw .fg{margin-left:4px}
+.nws{border-top:1px solid var(--line)}
+details.nw{border-bottom:1px solid var(--line)}
+details.nw summary{cursor:pointer;padding:8px 0;line-height:1.6;list-style:none}
+details.nw summary::-webkit-details-marker{display:none}
+details.nw summary .sj{display:block}
+details.nw[open] summary{color:var(--accent)}
+.nwd{padding:0 0 10px 12px;border-left:3px solid var(--line);font-size:13px;line-height:1.7}
+.nwd p{margin:0 0 6px;word-break:break-word}
+.nwd a{color:var(--accent)}
+@media (min-width:761px){details.nw summary .sj{display:inline;margin-left:6px}}

@@ -2,7 +2,10 @@ name: daily-update
 
 on:
   schedule:
-    # 台灣時間 週一~五三次（UTC 07:13 / 08:43 / 12:57）：
+    # 盤前：台灣時間週一~五 07:40（UTC 前一天 23:40，所以是週日~週四）：夜盤、匯率、今日事件、昨晚重大訊息
+    #       夜盤還沒出就每 5 分鐘重試，最多等 30 分鐘
+    - cron: "40 23 * * 0-4"
+    # 盤後：台灣時間 週一~五三次（UTC 07:13 / 08:43 / 12:57）：
     # 15:13 期貨資料（期交所約 15:20 公布，程式內每 5 分鐘重試，最多等 45 分鐘）；
     #       股票三大法人資料較晚，若還沒出就沿用舊的股票資料。
     # 16:43 股票盤後資料（三大法人約 16:20 公布）；若還沒公布會在程式內每 10 分鐘重試，最多等 60 分鐘。
@@ -11,6 +14,11 @@ on:
     - cron: "43 8 * * 1-5"
     - cron: "57 12 * * 1-5"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "pre＝只跑盤前速覽；留空＝盤後完整更新"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -34,8 +42,10 @@ jobs:
           FUT_WAIT_MINUTES: ${{ github.event.schedule == '13 7 * * 1-5' && '45' || '0' }}
           STOCK_WAIT_MINUTES: ${{ github.event.schedule == '43 8 * * 1-5' && '60' || '0' }}
           MARGIN_WAIT_MINUTES: ${{ github.event.schedule == '57 12 * * 1-5' && '60' || '0' }}
+          PRE_WAIT_MINUTES: ${{ github.event.schedule == '40 23 * * 0-4' && '30' || '0' }}
+          MODE: ${{ github.event.schedule == '40 23 * * 0-4' && 'pre' || inputs.mode }}
           # 這次排程負責的資料：最後還是沒抓到今天的就讓流程失敗（手動執行不檢查）
-          REQUIRE: ${{ github.event.schedule == '13 7 * * 1-5' && 'fut' || github.event.schedule == '43 8 * * 1-5' && 'stock' || github.event.schedule == '57 12 * * 1-5' && 'margin' || '' }}
+          REQUIRE: ${{ github.event.schedule == '40 23 * * 0-4' && 'pre' || github.event.schedule == '13 7 * * 1-5' && 'fut' || github.event.schedule == '43 8 * * 1-5' && 'stock' || github.event.schedule == '57 12 * * 1-5' && 'margin' || '' }}
         run: python scripts/fetch_data.py
       - name: 提交資料
         if: ${{ !cancelled() }}
@@ -60,7 +70,7 @@ jobs:
           # 加上版本號，避免瀏覽器用到舊的 app.js／style.css（新舊混用會讓頁面壞掉）
           sed -i "s#style.css\"#style.css?v=${GITHUB_SHA::7}\"#; s#app.js\"#app.js?v=${GITHUB_SHA::7}\"#" _site/index.html
           grep -q "app.js?v=" _site/index.html
-          rm -rf _site/data/inst _site/data/fut _site/data/history _site/data/market _site/data/chips _site/data/quotes _site/data/revenue _site/data/valhist
+          rm -rf _site/data/inst _site/data/fut _site/data/history _site/data/market _site/data/chips _site/data/quotes _site/data/revenue _site/data/valhist _site/data/news _site/data/sbl _site/data/tdcc
       - uses: actions/upload-pages-artifact@v3
         if: ${{ !cancelled() }}
         with:

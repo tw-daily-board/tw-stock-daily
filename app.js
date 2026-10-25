@@ -514,6 +514,189 @@ function bindLongterm(box) {
   });
 }
 
+// ---- 共用：分頁第一次打開才載入 JSON；可排序表格 ----
+const store = {}, loading = {};
+function need(file, tabs) {
+  if (store[file] || loading[file]) return store[file] || null;
+  loading[file] = true;
+  fetch(`data/${file}.json`, { cache: "no-cache" })
+    .then(r => { if (!r.ok) throw 0; return r.json(); })
+    .then(j => { store[file] = j; })
+    .catch(() => { store[file] = { error: true }; })
+    .finally(() => { loading[file] = false; if (tabs.includes(tab)) render(); });
+  return null;
+}
+const esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const md = d => d.slice(5).replace("-", "/");
+const WD = "日一二三四五六";
+const mdw = d => `${md(d)}（${WD[new Date(d + "T00:00:00Z").getUTCDay()]}）`;
+const twToday = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
+const btn = (attr, v, t, on, dis = false) => `<button ${attr}="${v}" class="${on ? "on" : ""}"${dis ? " disabled" : ""}>${t}</button>`;
+// 依網頁上的「權值股／熱門個股／熱門 ETF／外資買賣超」判斷是否為熱門股
+const hotCodes = () => new Set(["cap", "stocks", "etfs", "fi_buy", "fi_sell"].flatMap(k => (data?.[k] || []).map(r => r.code)));
+
+const tsort = {};   // 各表格目前的排序 {k, dir}
+// cols：[鍵, 標題, 產生 <td> 的函式]；def：預設排序
+function stable(id, rows, cols, def, limit = 100) {
+  const st = tsort[id] || def;
+  rows = rows.slice().sort((a, b) => (typeof a[st.k] === "string" ? a[st.k].localeCompare(b[st.k]) : (a[st.k] ?? -Infinity) - (b[st.k] ?? -Infinity)) * st.dir || a.code.localeCompare(b.code));
+  const th = cols.map(([k, t]) => `<th data-ts="${id}" data-tk="${k}" class="${st.k === k ? (st.dir > 0 ? "asc" : "desc") : ""}">${t}</th>`).join("");
+  const body = rows.slice(0, limit).map((r, i) => `<tr class="${r._cls || ""}">${cols.map(c => c[2](r, i)).join("")}</tr>`).join("");
+  return { html: `<table class="ft scr nt2"><thead><tr>${th}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length}" class="mute">沒有符合的資料</td></tr>`}</tbody></table>`, n: rows.length };
+}
+function bindTs(box) {
+  box.querySelectorAll("[data-ts]").forEach(el => el.onclick = () => {
+    const id = el.dataset.ts, k = el.dataset.tk, cur = tsort[id];
+    if (k === "rank") return;
+    tsort[id] = cur?.k === k ? { k, dir: -cur.dir } : { k, dir: ["code", "name", "market", "d", "cat"].includes(k) ? 1 : -1 };
+    render();
+  });
+}
+const td = v => `<td>${v}</td>`;
+const tdRank = (r, i) => td(i + 1);
+const tdCode = r => td(stockLink(r.code, r.code));
+const tdName = r => `<td class="name">${stockLink(r.code, esc(r.name))}<span class="mute2"> ${r.market}</span></td>`;
+const tdNum = (k, d = 0) => r => td(r[k] == null ? "-" : num(r[k], d));
+const tdSg = (k, d = 0, unit = "") => r => r[k] == null ? td("-") : `<td class="${cls(r[k])}">${sg(r[k], d)}${unit}</td>`;
+const tdPct = k => tdSg(k, 2, "%");
+const kindBtns = (attr, cur) => [["stock", "個股"], ["etf", "ETF"], ["all", "全部"]].map(([v, t]) => btn(attr, v, t, cur === v)).join("");
+const kindOk = (r, k) => k === "all" || (k === "etf") === r.etf;
+
+// ---- 盤前速覽（data/pre.json，07:40 更新） ----
+function renderPre() {
+  const p = need("pre", ["pre"]), ev = need("events", ["pre", "news", "exr"]);
+  if (!p) return '<div class="empty">載入中…</div>';
+  if (p.error) return '<div class="empty">盤前資料尚未產生：每個交易日早上 07:40 自動更新（夜盤約 05:00 收盤）。</div>';
+  const today = twToday(), e = p.events;
+  const stale = p.date !== today ? `<p class="behind">這是 ${p.date} 的盤前資料（今天 ${today} 休市或尚未更新）。</p>` : "";
+  const night = p.night.map(r => `<tr><td class="name">${r.name}<span class="mute2"> ${r.month.slice(2, 4)}/${r.month.slice(4)}</span></td><td>${num(r.close, r.close % 1 ? 2 : 0)}</td>` +
+    `<td class="${cls(r.change)}">${sg(r.change, r.close % 1 ? 2 : 0)}</td><td class="${cls(r.pct)}">${r.pct == null ? "-" : sg(r.pct, 2) + "%"}</td>` +
+    `<td>${num(r.high, r.close % 1 ? 2 : 0)}</td><td>${num(r.low, r.close % 1 ? 2 : 0)}</td><td>${num(r.volume)}</td></tr>`);
+  const fxd = p.fx[0].dates;
+  const fx = p.fx.map(r => `<tr><td class="name">${r.name}</td>${r.values.map(v => td(v == null ? "-" : num(v, v < 10 ? 4 : 3))).join("")}` +
+    `<td class="${cls(r.change)}">${r.change == null ? "-" : sg(r.change, r.values.at(-1) < 10 ? 4 : 3)}</td></tr>`);
+  const names = (xs, n = 12) => xs.length ? xs.slice(0, n).map(x => stockLink(x.code, esc(x.name))).join("、") + (xs.length > n ? ` …等 ${xs.length} 檔` : "") : "無";
+  const exToday = e.exright.filter(x => x.d === p.date), exSoon = e.exright.filter(x => x.d > p.date);
+  const cards = [
+    `<div><h3>選擇權結算</h3><p class="bd">${e.settle.length ? e.settle.join("、") + " 今日結算" : "今日無結算"}</p></div>`,
+    `<div><h3>今日除權息（${exToday.length} 檔）</h3><p>${names(exToday)}</p><p class="mute">未來 7 天還有 ${exSoon.length} 檔・<button class="lk" data-go="exr">看除權息 ›</button></p></div>`,
+    `<div><h3>處置中（${(e.flags["處置"] || []).length} 檔）</h3><p>${names(e.flags["處置"] || [])}</p><p class="mute">人工撮合，通常要預收款券，不能現股當沖</p></div>`,
+    `<div><h3>暫停先賣後買（${(e.flags["暫停先賣後買"] || []).length} 檔）</h3><p>${names(e.flags["暫停先賣後買"] || [])}</p><p class="mute">${e.flags_from ? `依 ${e.flags_from} 盤後公告` : "前一日當沖觀察資料不是供今天使用，暫不列出"}・<button class="lk" data-go="dt">看當沖觀察 ›</button></p></div>`,
+  ];
+  let news = "";
+  if (ev && !ev.error) {
+    const since = e.stock_date, hot = hotCodes();
+    const xs = ev.news.filter(x => x.d > since || (x.d === since && x.t >= "13:30:00"));
+    const li = xs.slice(0, 30).map(x => `<li><span class="mute2">${md(x.d)} ${x.t.slice(0, 5)}</span> ${stockLink(x.code, `<b>${esc(x.name)}</b>`)} ${hot.has(x.code) ? '<span class="fg bad">熱門</span>' : ""}<span class="fg">${x.cat}</span> ${esc(x.subject)}</li>`).join("");
+    news = `<h2 class="sec">${md(since)} 收盤後的重大訊息（${xs.length} 則）</h2><div class="sc opt"><ul class="nl">${li || '<li class="mute">沒有</li>'}</ul>
+      <p class="mute">${xs.length > 30 ? "只列最新 30 則・" : ""}<button class="lk" data-go="news">看全部重大訊息 ›</button></p></div>`;
+  }
+  return `<h2 class="sec">盤前速覽（${p.date}・更新 ${p.updated_at.replace("T", " ").slice(0, 16)}）</h2><div class="sc opt">${stale}<div class="sr">${cards.join("")}</div></div>` +
+    ftable("期貨夜盤（近月）", ["合約", "收盤", "漲跌", "漲跌幅", "最高", "最低", "成交量"], night,
+      `<p class="fn">夜盤為前一晚 15:00～今天 05:00；期交所把它記在今天的交易日。漲跌相對前一個交易日的結算價（不是日盤收盤價）。</p>`) +
+    ftable("匯率（期交所每日外幣參考匯率）", ["", ...fxd.map(md), "較前日"], fx,
+      `<p class="fn">每日外幣參考匯率為前一個交易日的資料；美元／新台幣數字變大＝新台幣貶值。</p>`) + news;
+}
+
+// ---- 重大訊息（data/events.json） ----
+const newsState = { d: "", cat: "", hot: false };
+function renderNews() {
+  const ev = need("events", ["pre", "news", "exr"]);
+  if (!ev) return '<div class="empty">載入中…</div>';
+  if (ev.error) return '<div class="empty">重大訊息資料尚未產生，之後排程會自動補上。</div>';
+  const s = newsState, hot = hotCodes();
+  const base = ev.news.filter(x => (!s.d || x.d === s.d) && (!s.hot || hot.has(x.code)));
+  const xs = base.filter(x => !s.cat || x.cat === s.cat);
+  const cnt = c => base.filter(x => x.cat === c).length;
+  const items = xs.slice(0, 200).map(x => `<details class="nw"><summary><span class="mute2">${md(x.d)} ${x.t.slice(0, 5)}</span> ${stockLink(x.code, `<b>${esc(x.code)} ${esc(x.name)}</b>`)}<span class="mute2"> ${x.market}</span>
+    ${hot.has(x.code) ? '<span class="fg bad">熱門</span>' : ""}<span class="fg">${x.cat}</span><span class="sj">${esc(x.subject)}</span></summary>
+    <div class="nwd"><p>${esc(x.desc).replace(/\n/g, "<br>")}</p><p class="mute">${x.rule ? `符合條款：${esc(x.rule)}・` : ""}原文：<a href="https://mops.twse.com.tw/mops/#/web/t05sr01_1" target="_blank" rel="noopener noreferrer">公開資訊觀測站</a></p></div></details>`).join("");
+  return `<h2 class="sec">重大訊息（近 ${ev.news_days} 天，共 ${ev.news.length} 則）</h2><div class="sc opt">
+    <nav class="optnav">${btn("data-nd", "", "全部日期", !s.d)}${ev.news_dates.map(d => btn("data-nd", d, mdw(d), s.d === d)).join("")}</nav>
+    <nav class="optnav">${btn("data-nc", "", `全部（${base.length}）`, !s.cat)}${ev.categories.map(c => btn("data-nc", c, `${c}（${cnt(c)}）`, s.cat === c, !cnt(c))).join("")}
+      ${btn("data-nh", 1, "只看熱門股", s.hot)}</nav>
+    <div class="nws">${items || '<p class="mute">沒有符合的訊息</p>'}</div>
+    <p class="fn">${xs.length > 200 ? "只列最新 200 則；" : ""}點一則看說明。資料來源：證交所、櫃買中心 OpenAPI 的「上市／上櫃公司每日重大訊息」（公司自行申報的公告原文，不是新聞報導）。分類依主旨關鍵字自動判斷，可能不精準。「熱門」＝出現在本站權值股、熱門個股／ETF、外資買賣超前 20 名。OpenAPI 只提供最近一天，本站從 2026-10-24 起每天累積。</p></div>`;
+}
+
+// ---- 除權息（data/events.json） ----
+const exrState = { kind: "all" };
+function renderExr() {
+  const ev = need("events", ["pre", "news", "exr"]);
+  if (!ev) return '<div class="empty">載入中…</div>';
+  if (ev.error) return '<div class="empty">除權息資料尚未產生，之後排程會自動補上。</div>';
+  const today = twToday();
+  const rows = ev.exright.filter(r => kindOk(r, exrState.kind)).map(r => ({ ...r, _cls: r.d === today ? "td0" : r.d < today ? "past" : "" }));
+  const t = stable("exr", rows, [
+    ["d", "除權息日", r => td(mdw(r.d))], ["code", "代號", tdCode], ["name", "名稱", tdName], ["kind", "類型", r => td(r.kind)],
+    ["cash", "現金股利(元)", r => td(r.cash == null ? '<span class="mute2">待公告</span>' : num(r.cash, r.cash < 1 ? 3 : 2))],
+    ["stock", "配股(每股)", r => td(r.stock == null ? "-" : num(r.stock, 4))], ["close", "收盤價", tdNum("close", 2)],
+    ["yield", "現金殖利率", r => td(r.yield == null ? "-" : num(r.yield, 2) + "%")],
+  ], { k: "d", dir: 1 }, 300);
+  return `<h2 class="sec">除權除息預告（${t.n} 檔）</h2><div class="sc opt"><nav class="optnav">${kindBtns("data-xk", exrState.kind)}</nav></div>
+    <div class="sc">${t.html}<p class="fn">資料來源：證交所「除權除息預告表」、櫃買中心「上櫃股票除權除息預告表」。收盤價與殖利率用 ${ev.close_date || "-"} 收盤價計算（除息當天參考價會扣掉股利）；現金殖利率＝現金股利÷收盤價，只算這一次配發。灰色為已除權息（保留 3 天），底色為今天。</p></div>`;
+}
+
+// ---- 借券賣出（data/sbl.json） ----
+const SBL_MODES = [["sell", "當日借券賣出", "sell", -1], ["d1", "餘額增加（當日）", "d1", -1], ["d5", "餘額增加（5 日）", "d5", -1], ["d5r", "餘額減少（5 日）", "d5", 1], ["ratio", "占成交量", "sell_ratio", -1]];
+const sblState = { mode: "sell", kind: "stock" };
+function renderSbl() {
+  const sb = need("sbl", ["sbl"]);
+  if (!sb) return '<div class="empty">載入中…</div>';
+  if (sb.error) return '<div class="empty">借券賣出資料尚未產生，之後排程會自動補上。</div>';
+  const s = sblState, m = SBL_MODES.find(x => x[0] === s.mode);
+  const rows = sb.rows.filter(r => kindOk(r, s.kind) && (s.mode !== "ratio" || r.volume >= 1000));
+  const t = stable("sbl", rows, [
+    ["rank", "#", tdRank], ["code", "代號", tdCode], ["name", "名稱", tdName], ["close", "收盤價", tdNum("close", 2)], ["pct", "漲跌幅", tdPct("pct")],
+    ["volume", "成交量", tdNum("volume")], ["sell", "借券賣出", tdNum("sell")], ["ret", "還券", tdNum("ret")], ["bal", "借券賣出餘額", tdNum("bal")],
+    ["d1", "當日增減", tdSg("d1")], ["d5", "5 日增減", tdSg("d5")], ["sell_ratio", "占成交量", r => td(r.sell_ratio == null ? "-" : num(r.sell_ratio, 1) + "%")],
+    ["short", "融券餘額", tdNum("short")], ["fi", "外資當日", tdSg("fi")],
+  ], tsort.sbl ? null : { k: m[2], dir: m[3] });
+  return `<h2 class="sec">借券賣出（${sb.date}）</h2><div class="sc opt">
+    <nav class="optnav">${SBL_MODES.map(([k, tt]) => btn("data-bm", k, tt, s.mode === k)).join("")}</nav>
+    <nav class="optnav">${kindBtns("data-bk", s.kind)}</nav>
+    <p class="mute">依「${m[1]}」排序，取前 100 檔${s.mode === "ratio" ? "（只列成交量 1,000 張以上）" : ""}；單位：張。</p></div>
+    <div class="sc">${t.html}<p class="fn">資料來源：證交所、櫃買中心「融券借券賣出餘額」。借券賣出是借股票來賣（多為法人避險或放空），餘額增加代表放空部位變多；還券代表回補。5 日增減＝今天餘額－${sb.dates.length >= 6 ? sb.dates[5] : "5 個交易日前"} 餘額。占成交量＝當日借券賣出÷當日成交量。外資當日為三大法人買賣超（張）。借券賣出餘額約晚上 9 點後公布。</p></div>`;
+}
+
+// ---- 大戶持股（data/holders.json，集保每週） ----
+const BIG_MODES = [["up", "千張大戶增加", "d1000", -1, true], ["down", "千張大戶減少", "d1000", 1, true], ["conc", "股東人數減少", "dpeople", 1, true], ["high", "千張大戶比例", "r1000", -1, false]];
+const bigState = { mode: null, kind: "stock" };
+function renderBig() {
+  const h = need("holders", ["big"]);
+  if (!h) return '<div class="empty">載入中…</div>';
+  if (h.error) return '<div class="empty">大戶持股資料尚未產生，之後排程會自動補上。</div>';
+  const s = bigState, one = !h.prev;
+  if (!s.mode) s.mode = one ? "high" : "up";
+  const m = BIG_MODES.find(x => x[0] === s.mode);
+  const rows = h.rows.filter(r => kindOk(r, s.kind) && r.volume >= 100 && (!m[4] || r[m[2]] != null));
+  const pp = k => r => r[k] == null ? td("-") : `<td class="${cls(r[k])}">${sg(r[k], 2)}</td>`;
+  const t = stable("big", rows, [
+    ["rank", "#", tdRank], ["code", "代號", tdCode], ["name", "名稱", tdName], ["close", "收盤價", tdNum("close", 2)], ["wk_pct", "週漲跌幅", tdPct("wk_pct")],
+    ["r1000", "千張大戶%", r => td(num(r.r1000, 2))], ["d1000", "週增減", pp("d1000")], ["d1000_4w", "4 週增減", pp("d1000_4w")],
+    ["r400", "400 張以上%", r => td(num(r.r400, 2))], ["d400", "週增減", pp("d400")], ["people", "股東人數", tdNum("people")], ["dpeople", "人數週增減", tdPct("dpeople")],
+  ], tsort.big ? null : { k: m[2], dir: m[3] });
+  const first = one ? `<p class="behind">目前只有 ${h.date} 這一週。集保每週公布一次且只提供最新一週，週增減要等下一週資料出來後才算得出來（4 週增減要累積 5 週）。</p>` : "";
+  return `<h2 class="sec">大戶持股（集保 ${h.date}${h.prev ? `，比較 ${h.prev}` : ""}）</h2><div class="sc opt">${first}
+    <nav class="optnav">${BIG_MODES.map(([k, tt, , , needPrev]) => btn("data-gm", k, tt, s.mode === k, needPrev && one)).join("")}</nav>
+    <nav class="optnav">${kindBtns("data-gk", s.kind)}</nav>
+    <p class="mute">依「${m[1]}」排序，取前 100 檔；只列成交量 100 張以上。增減單位為百分點。</p></div>
+    <div class="sc">${t.html}<p class="fn">資料來源：集保結算所「集保戶股權分散表」（每週最後一個交易日的持股，通常週五晚間或週六公布）。千張大戶＝單一集保戶持有 1,000 張（1,000,001 股）以上；400 張以上＝400,001 股以上。週漲跌幅為兩次集保資料日之間的還原股價漲跌。大戶比例上升、股東人數減少，通常解讀為籌碼集中；集保戶包含法人、信託與券商保管帳戶，不等於自然人大戶。</p></div>`;
+}
+function bindNew(box) {
+  const set = (sel, fn) => box.querySelectorAll(sel).forEach(b => b.onclick = () => { fn(b); render(); });
+  set("[data-nd]", b => { newsState.d = b.dataset.nd; });
+  set("[data-nc]", b => { newsState.cat = b.dataset.nc; });
+  set("[data-nh]", () => { newsState.hot = !newsState.hot; });
+  set("[data-xk]", b => { exrState.kind = b.dataset.xk; });
+  set("[data-bm]", b => { sblState.mode = b.dataset.bm; delete tsort.sbl; });
+  set("[data-bk]", b => { sblState.kind = b.dataset.bk; });
+  set("[data-gm]", b => { bigState.mode = b.dataset.gm; delete tsort.big; });
+  set("[data-gk]", b => { bigState.kind = b.dataset.gk; });
+  box.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
+  bindTs(box);
+}
+
 function renderFut(f) {
   const ix = f.index;
   const mk = [`<tr class="idx"><td class="name">加權指數</td><td>${num(ix.close, 2)}</td><td class="${cls(ix.change)}">${sg(ix.change, 2)}</td><td class="${cls(ix.change)}">${sg(ix.pct, 2)}%</td><td>${num(ix.value_tril, 6)} 兆元</td><td>-</td><td>-</td></tr>`]
@@ -532,6 +715,8 @@ function renderFut(f) {
       '<p class="fn">淨部位＝十大買方部位－十大賣方部位；特定人＝特定法人，非特定人＝其餘交易人；近月為最近月份契約，其他月含週契約；括號為較前一交易日的變化。</p>');
 }
 
+const NEW_TABS = { pre: renderPre, news: renderNews, exr: renderExr, sbl: renderSbl, big: renderBig };
+
 function render() {
   const box = document.querySelector(".scroll");
   const cs = cols();
@@ -542,13 +727,14 @@ function render() {
     box.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
     return;
   }
-  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig", "scr", "val", "dt", "lt"].includes(tab);
+  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig", "scr", "val", "dt", "lt", ...Object.keys(NEW_TABS)].includes(tab);
   if (tab === "mkt") { box.innerHTML = renderMarket(data.market_breadth); return; }
   if (tab === "sig") { box.innerHTML = renderSignals(data.signals); return; }
   if (tab === "scr") { loadScreens(); box.innerHTML = renderScreens(); bindScreens(box); return; }
   if (tab === "val") { loadValue(); box.innerHTML = renderValue(); bindValue(box); return; }
   if (tab === "dt") { loadDaytrade(); box.innerHTML = renderDaytrade(); bindDaytrade(box); return; }
   if (tab === "lt") { loadLongterm(); box.innerHTML = renderLongterm(); bindLongterm(box); return; }
+  if (tab in NEW_TABS) { box.innerHTML = NEW_TABS[tab](); bindNew(box); return; }
   if (tab === "opt") {
     box.innerHTML = data.fut ? renderOpt(data.fut.opt, data.fut.pc, data.fut.date) : '<div class="empty">期交所資料尚未公布，之後排程會自動補上。</div>';
     box.querySelectorAll("[data-opt]").forEach(b => b.onclick = () => { optSel = +b.dataset.opt; render(); });
@@ -580,15 +766,16 @@ siteSel.onchange = () => {
   if (data) render();
 };
 
-// ---- 導覽：6 大類 × 子分頁；網址 #分頁 會記住目前位置（重新整理、分享、返回鍵都可用） ----
+// ---- 導覽：7 大類 × 子分頁；網址 #分頁 會記住目前位置（重新整理、分享、返回鍵都可用） ----
 // 圖示用內嵌 SVG（文字符號在不同手機上長得不一樣）
 const ICON = p => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 const GROUPS = [
-  ["home", "總覽", ICON('<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>'), [["home", "今日重點"], ["sig", "綜合訊號"]]],
+  ["home", "總覽", ICON('<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>'), [["home", "今日重點"], ["pre", "盤前速覽"], ["sig", "綜合訊號"]]],
   ["mkt", "大盤", ICON('<path d="M3 20h18"/><path d="M4 16l5-5 4 3 7-8"/>'), [["mkt", "市場強弱"]]],
   ["fo", "期權", ICON('<path d="M7 20V5"/><path d="M3 9l4-4 4 4"/><path d="M17 4v15"/><path d="M13 15l4 4 4-4"/>'), [["fut", "台指期"], ["opt", "選擇權支撐壓力"]]],
-  ["chip", "籌碼", ICON('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>'), [["cap", "權值股"], ["stocks", "熱門個股"], ["etfs", "熱門 ETF"], ["fi", "外資買賣超"], ["fi_etf", "ETF 外資"], ["scr", "籌碼篩選"]]],
+  ["chip", "籌碼", ICON('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>'), [["cap", "權值股"], ["stocks", "熱門個股"], ["etfs", "熱門 ETF"], ["fi", "外資買賣超"], ["fi_etf", "ETF 外資"], ["scr", "籌碼篩選"], ["sbl", "借券賣出"], ["big", "大戶持股"]]],
   ["pick", "選股", ICON('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>'), [["val", "營收估值"], ["lt", "長期體質"]]],
+  ["ev", "事件", ICON('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'), [["news", "重大訊息"], ["exr", "除權息"]]],
   ["dt", "當沖", ICON('<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>'), [["dt", "當沖觀察"]]],
 ];
 const groupOf = t => GROUPS.find(g => g[3].some(([k]) => k === t)) || GROUPS[0];

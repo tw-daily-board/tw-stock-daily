@@ -408,6 +408,18 @@ def build():
     except Exception as e:  # noqa: BLE001
         warn("當沖觀察未更新", e)
 
+    # 重大訊息、除權息預告：寫到 data/events.json
+    update_events()
+
+    # 千張大戶（集保股權分散表，每週一次）：寫到 data/holders.json
+    import fetch_lending
+    try:
+        weeks = fetch_lending.load_tdcc(get_text, lambda c: c in quotes and (is_common_stock(c) or is_etf(c)))
+        fetch_lending.write(fetch_lending.HOLDERS_OUT, fetch_lending.build_holders(
+            weeks, quotes, price_dates if qall else [], qall, fetch_screens.period_pct, is_common_stock))
+    except Exception as e:  # noqa: BLE001
+        warn("千張大戶未更新", e)
+
     # 市場整體強弱：失敗不擋住其他股票資料
     try:
         market = fetch_market.build(get_json, trade_date, quotes, industry, [d for d, _ in days], REQUEST_GAP, turnover)
@@ -431,6 +443,63 @@ def build():
         "fi_etf_sell": fi_etf_sell,
         "fi_etf_total": fi_etf_total,
     }
+
+
+def update_events():
+    """重大訊息只提供最近一天，每次執行（含盤前）都抓來累積；失敗不擋住其他資料"""
+    import fetch_events
+    try:
+        fetch_events.write(fetch_events.build(get_json, datetime.now(timezone(timedelta(hours=8))).date(), REQUEST_GAP))
+    except Exception as e:  # noqa: BLE001
+        warn("重大訊息／除權息未更新", e)
+
+
+def update_sbl(out, deadline, loud):
+    """借券賣出餘額（晚間公布）：當天還沒出就每 10 分鐘重試到 deadline，仍沒有就保留舊檔
+    （晚間排程 loud=True 才發警告；下午的排程本來就還沒公布，只印訊息）"""
+    import fetch_lending
+    dates = [date.fromisoformat(x) for x in out.get("inst_dates", [])]
+    while True:
+        try:
+            days = fetch_lending.load_sbl(get_json, dates, REQUEST_GAP)
+            fetch_lending.write(fetch_lending.SBL_OUT, fetch_lending.build_sbl(days, dates, is_common_stock))
+            return
+        except fetch_lending.SblNotReady as e:
+            if time.time() + 600 < deadline:
+                print(f"借券賣出尚未公布，10 分鐘後重試：{e}", file=sys.stderr)
+                time.sleep(600)
+                continue
+            if loud:
+                warn("借券賣出尚未公布（保留前一日）", e)
+            else:
+                print(f"借券賣出尚未公布（保留前一日）：{e}", file=sys.stderr)
+            return
+        except Exception as e:  # noqa: BLE001
+            warn("借券賣出未更新", e)
+            return
+
+
+def run_pre(today, require):
+    """盤前（07:40）：夜盤、匯率、今日事件與昨晚的重大訊息。夜盤還沒出就每 5 分鐘重試到 PRE_WAIT_MINUTES"""
+    import fetch_fut
+    import fetch_pre
+    update_events()
+    deadline = time.time() + 60 * int(os.environ.get("PRE_WAIT_MINUTES", "0"))
+    now = lambda: datetime.now(timezone(timedelta(hours=8))).isoformat(timespec="seconds")  # noqa: E731
+    while True:
+        try:
+            fetch_pre.write(fetch_pre.build(today, now()))
+            print(f"OK 盤前 {today}")
+            return
+        except fetch_fut.NotPublished as e:
+            if time.time() + 300 < deadline:
+                print(f"夜盤資料尚未公布，5 分鐘後重試：{e}", file=sys.stderr)
+                time.sleep(300)
+                continue
+            if "pre" in require:
+                raise
+            warn("夜盤資料尚未公布", e)
+            return
 
 
 def warn(title, e):
@@ -551,6 +620,11 @@ def main():
     if require and not is_trading_day(today):
         print(f"{today} 休市，不更新")
         return
+    # 盤前排程（07:40）只更新 data/pre.json 與重大訊息，不重抓盤後資料
+    if os.environ.get("MODE") == "pre":
+        run_pre(today, require)
+        return
+    started = time.time()
     try:
         old = json.loads((DATA / "latest.json").read_text())
     except (OSError, ValueError):
@@ -581,6 +655,9 @@ def main():
     except Exception as e:  # noqa: BLE001
         warn("綜合訊號未更新", e)
         out["signals"] = (old or {}).get("signals")
+    # 借券賣出餘額：和融資融券差不多時間公布，等待時間共用 MARGIN_WAIT_MINUTES
+    if fresh:
+        update_sbl(out, started + 60 * int(os.environ.get("MARGIN_WAIT_MINUTES", "0")), "margin" in require)
     (DATA / "latest.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
     if fresh:
         save_history(out)
