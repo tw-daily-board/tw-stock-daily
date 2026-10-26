@@ -75,7 +75,15 @@ def events(d):
             for f in r["flags"]:
                 if f in ("處置", "暫停先賣後買"):
                     flags.setdefault(f, []).append({"code": r["code"], "name": r["name"], "market": r["market"]})
-    settle = [s["label"] for s in ((latest.get("fut") or {}).get("opt") or {}).get("series", []) if s.get("exp") == t]
+    # 結算日：期交所資料的到期日是今天；或到期日已過、但期貨資料日之後一直沒有交易日（颱風、臨時休市），
+    # 這時期交所會延到下一個交易日（今天）結算
+    fut = latest.get("fut") or {}
+    settle = []
+    for s in (fut.get("opt") or {}).get("series", []):
+        if s.get("exp") == t:
+            settle.append(s["label"])
+        elif s.get("exp") and fut.get("date", "") < s["exp"] < t:
+            settle.append(f"{s['label']}（遇休市延後）")
     return {"exright": exr, "flags": flags, "flags_from": dt.get("date") if dt.get("next_day") == t else None,
             "settle": settle, "stock_date": latest.get("date")}
 

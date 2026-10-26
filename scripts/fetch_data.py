@@ -625,7 +625,11 @@ def main():
         print(f"{today} 休市，不更新")
         return
     # 盤前排程（07:15）只更新 data/pre.json 與重大訊息，不重抓盤後資料
-    if os.environ.get("MODE") == "pre":
+    mode = os.environ.get("MODE", "")
+    if mode == "auto":   # 手動執行預設：台灣時間 09:00 前跑盤前，其他時間跑盤後完整更新
+        mode = "pre" if datetime.now(timezone(timedelta(hours=8))).hour < 9 else "full"
+        print(f"手動執行（auto）：這次跑 {'盤前' if mode == 'pre' else '盤後完整更新'}")
+    if mode == "pre":
         run_pre(today, require)
         return
     started = time.time()

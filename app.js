@@ -1057,8 +1057,9 @@ function renderHome() {
   cards.push(card("sbl", "借券賣出餘額（全市場）", sb ? big(sg(sb.chg) + " 張", cls(sb.chg)) : big("-"),
     sb ? `餘額 ${num(sb.bal)} 張（${sg(sb.pct, 2)}%）${sb.top.length ? "・增加最多：" + sb.top.map(x => x.name).join("、") : ""}` : "約晚上 9 點後公布"));
   // 9 選擇權結算
-  const o = f?.opt?.series?.find(x => x.exp >= twToday()) || f?.opt?.series?.[0];
-  if (o) cards.push(card("opt", `最近結算 ${o.label}`,
+  // 系列已依到期日排序且只留資料日之後到期的；到期日已過卻還沒新資料＝遇休市延後結算
+  const o = f?.opt?.series?.[0], late = o && o.exp < twToday();
+  if (o) cards.push(card("opt", late ? `最近結算 ${o.label}（延後至下一個交易日）` : `最近結算 ${o.label}`,
     `<p class="bd"><span>壓力 <b>${o.resist[0] ? num(o.resist[0].strike) : "-"}</b></span><span>支撐 <b>${o.support[0] ? num(o.support[0].strike) : "-"}</b></span></p>`,
     `加權 ${num(f.opt.ref, 0)}・此系列 P/C ${o.pc == null ? "-" : num(o.pc, 1) + "%"}`));
   // 10 外資買賣超前 3
@@ -1071,7 +1072,7 @@ function renderHome() {
     const nd = ev.news_dates[0], nToday = ev.news.filter(x => x.d === nd), nHot = nToday.filter(x => hot.has(x.code)).length;
     const nextEx = ev.exright.find(x => x.d > today)?.d, exN = nextEx ? ev.exright.filter(x => x.d === nextEx).length : 0;
     cards.push(card("news", "今日事件", `<ul class="evl"><li><span>重大訊息 ${nd ? (nd === today ? "今天" : md(nd)) : ""}</span><b>${nToday.length} 則</b></li><li><span>其中熱門股</span><b>${nHot} 則</b></li>` +
-      `<li><span>下次除權息${nextEx ? " " + md(nextEx) : ""}</span><b>${exN} 檔</b></li>${o ? `<li><span>下次結算</span><b>${o.label.split("（")[0]}</b></li>` : ""}</ul>`));
+      `<li><span>下次除權息${nextEx ? " " + md(nextEx) : ""}</span><b>${exN} 檔</b></li>${o ? `<li><span>下次結算</span><b>${late ? "延後・" : ""}${o.label.split("（")[0]}</b></li>` : ""}</ul>`));
   } else cards.push(card("news", "今日事件", big("…"), "載入中"));
   // 12 盤前夜盤
   if (pre && !pre.error && pre.date === twToday()) {
