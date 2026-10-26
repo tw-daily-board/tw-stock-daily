@@ -608,11 +608,12 @@ function renderPre() {
       <p class="mute">${xs.length > 30 ? "只列最新 30 則・" : ""}<button class="lk" data-go="news">看全部重大訊息 ›</button></p></div>`;
   }
   const nd = p.night_date || p.date;
-  const nightNote = nd !== p.date ? `<p class="behind">今天沒有夜盤資料（休市或尚未公布），這是 ${mdw(nd)} 交易日的夜盤（${mdw(nd)} 前一晚）。</p>` : "";
+  const sess = p.night_from ? `${mdw(p.night_from)} 15:00 開盤～隔天 05:00` : "前一個交易日晚上";
+  const nightNote = `<p class="${nd !== p.date ? "behind" : "mute"}">${nd !== p.date ? "今天不是這筆夜盤的交易日（休市或手動執行）。" : ""}這是 ${sess} 的夜盤，期交所記在 ${mdw(nd)} 交易日。</p>`;
   return `<h2 class="sec">盤前速覽（${p.date}・更新 ${p.updated_at.replace("T", " ").slice(0, 16)}）</h2><div class="sc opt">${stale}<div class="sr ev2">${cards.join("")}</div></div>` +
     worldHtml(p.world) +
     ftable(`期貨夜盤（近月，${md(nd)} 交易日）`, ["合約", "收盤", "漲跌", "漲跌幅", "最高", "最低", "成交量"], night,
-      nightNote + `<p class="fn">夜盤為前一晚 15:00～隔天 05:00；期交所把它記在隔天的交易日。漲跌相對前一個交易日的結算價（不是日盤收盤價）。</p>`) +
+      nightNote + `<p class="fn">夜盤為前一個交易日 15:00～隔天 05:00；期交所把它記在下一個交易日（遇到休市會跳過，例如週五晚上的夜盤記在週一）。漲跌相對前一個交易日的結算價（不是日盤收盤價）。</p>`) +
     ftable("匯率（期交所每日外幣參考匯率）", ["", ...fxd.map(md), "較前日"], fx,
       `<p class="fn">每日外幣參考匯率為前一個交易日的資料；美元／新台幣數字變大＝新台幣貶值。</p>`) + news;
 }

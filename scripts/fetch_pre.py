@@ -85,29 +85,38 @@ def tw_close(code):
     return (json.loads(files[-1].read_text()).get(code) or [None])[0] if files else None
 
 
+def session_start(nd):
+    """夜盤記在 nd 交易日，實際是 nd 的前一個交易日晚上開盤；前一個交易日取自行情快取（data/quotes）"""
+    days = sorted(f.stem for f in (DATA / "quotes").glob("*.json") if f.stem < f"{nd:%Y%m%d}")
+    return f"{days[-1][:4]}-{days[-1][4:6]}-{days[-1][6:]}" if days else None
+
+
 def build(d, now, warn, fallback=False):
-    """fallback＝True（手動執行）：當天沒有夜盤時往前找最近一個有夜盤的交易日"""
+    """夜盤記在「下一個交易日」：今天早上查今天的日期＝昨晚的夜盤。
+    fallback＝True（手動執行）：今天沒有時先往後找（休市日時最新一晚的夜盤記在下一個交易日），再往前找"""
     import fetch_world
+    cands = [d]
+    if fallback:
+        cands += [d + timedelta(days=k) for k in range(1, 8)] + [d - timedelta(days=k) for k in range(1, 11)]
     nd, nt = d, None
-    for back in range(0, 11 if fallback else 1):
-        nd = d - timedelta(days=back)
-        if nd.weekday() >= 5:
+    for c in cands:
+        if c.weekday() >= 5:
             continue
         try:
-            nt = night(nd)
+            nt, nd = night(c), c
             break
         except fetch_fut.NotPublished:
             if not fallback:
                 raise
     if nt is None:
-        raise fetch_fut.NotPublished(f"期交所 {d} 前 10 天都沒有夜盤資料")
+        raise fetch_fut.NotPublished(f"期交所 {d} 前後都沒有夜盤資料")
     fxs = fx(d)
     try:
         world = fetch_world.build(warn, tw_close("2330"), fxs[0]["values"][-1])
     except Exception as e:  # noqa: BLE001
         warn("國際市場未更新", e)
         world = None
-    return {"date": d.isoformat(), "night_date": nd.isoformat(), "updated_at": now, "night": nt, "fx": fxs,
+    return {"date": d.isoformat(), "night_date": nd.isoformat(), "night_from": session_start(nd), "updated_at": now, "night": nt, "fx": fxs,
             "events": events(d), "world": world}
 
 
