@@ -6,11 +6,16 @@
   - 漲跌家數（上市＋上櫃）  證交所 MI_INDEX MS、櫃買 highlight（與市場強弱同一套 fetch_market.fetch_day）
   - 外資台指期淨未平倉、小台／微台散戶多空比  期交所 futContractsDateDown（可查 3 個月）、futDataDown（一次最多約一個月，分段查）
   - P/C 比  期交所 pcRatioDown
+  - 台指 VIX  期交所「臺指選擇權波動率指數」每月檔（每日收盤值，可下載前 3 個月）
+  - 20 日歷史波動率  由加權指數每日漲跌自己算：近 20 日對數報酬的標準差 × √252（年化 %）
 每日的現貨資料先讀 data/chips/、data/market/ 快取，沒有才回補，結果存在 data/trend/YYYYMMDD.json（保留 TREND_DAYS 天）；
 期交所的資料每次用區間查詢重抓（約 13 次請求）。當天還沒公布的項目留空，不用替代數字。輸出 data/trend.json。
 """
 import json
+import math
+import statistics
 import time
+import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -24,6 +29,8 @@ OUT = ROOT / "data" / "trend.json"
 TREND_DAYS = 60
 MAX_FETCH_PER_RUN = 30     # 每次最多回補幾天的現貨資料（第一次回補分批也沒關係）
 RETAIL = [("MTX", "小型臺指期貨"), ("TMF", "微型臺指期貨")]
+VIX_URL = "https://www.taifex.com.tw/file/taifex/Dailydownload/vix/log2data/{ym}new.txt"
+HV_DAYS = 20
 
 
 def read(dirpath, d):
@@ -137,6 +144,51 @@ def pc_range(start, end):
     return out
 
 
+# ---------- 波動率 ----------
+def vix_month(ym):
+    """{日期: 收盤 VIX}；檔案為 Big5 文字檔：交易日期、時間、指數、收盤前 1 分鐘平均（以 tab 分隔）"""
+    last = None
+    for i in range(4):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(VIX_URL.format(ym=ym), headers=fetch_fut.UA), timeout=40) as r:
+                text = r.read().decode("cp950", "replace")
+            break
+        except Exception as e:  # noqa: BLE001
+            last = e
+            time.sleep(2 ** (i + 1))
+    else:
+        raise RuntimeError(f"期交所 VIX {ym} 抓不到：{last}")
+    if "臺指選擇權波動率指數" not in text:
+        raise RuntimeError(f"期交所 VIX {ym} 格式不符：{text[:80]!r}")
+    out = {}
+    for line in text.splitlines():
+        f = line.split()
+        if len(f) >= 3 and f[0].isdigit() and len(f[0]) == 8:
+            out[f"{f[0][:4]}-{f[0][4:6]}-{f[0][6:]}"] = float(f[2])
+    return out
+
+
+def vix_range(start, end):
+    out, m = {}, start.replace(day=1)
+    while m <= end:
+        time.sleep(1)
+        out.update(vix_month(f"{m:%Y%m}"))
+        m = (m + timedelta(days=32)).replace(day=1)
+    return out
+
+
+def hv(turnover, i, n=HV_DAYS):
+    """turnover 第 i 天（含）往前 n 天的年化歷史波動率（%）；漲跌來自 FMTQIK（參考價＝收盤－漲跌）"""
+    if i + 1 < n:
+        return None
+    rets = []
+    for r in turnover[i - n + 1:i + 1]:
+        if r["index"] is None or r["change"] is None or r["index"] - r["change"] <= 0:
+            return None
+        rets.append(math.log(r["index"] / (r["index"] - r["change"])))
+    return round(statistics.stdev(rets) * math.sqrt(252) * 100, 2)
+
+
 def build(get_json, turnover, today, gap, warn):
     """turnover：FMTQIK（舊→新，含加權指數）；也是交易日清單"""
     tv = turnover[-TREND_DAYS:]
@@ -148,8 +200,14 @@ def build(get_json, turnover, today, gap, warn):
         pc = pc_range(dates[-1], dates[0])
     except Exception as e:  # noqa: BLE001
         warn("趨勢期貨資料未更新", e)
+    vix = {}
+    try:
+        vix = vix_range(dates[-1], dates[0])
+    except Exception as e:  # noqa: BLE001
+        warn("台指 VIX 未更新", e)
+    off = len(turnover) - len(tv)
     rows, adl = [], 0
-    for r in tv:
+    for j, r in enumerate(tv):
         s = spot.get(r["date"]) or {}
         net = s["up"] - s["down"] if s else None
         adl = adl + net if net is not None else adl
@@ -157,7 +215,8 @@ def build(get_json, turnover, today, gap, warn):
                      "fi": s.get("fi"), "fin_amt": s.get("fin_amt"), "up": s.get("up"), "down": s.get("down"),
                      "net": net, "adl": adl if net is not None else None,
                      **{k: (fut.get(r["date"]) or {}).get(k) for k in ("fi_oi", "MTX", "TMF")},
-                     **{k: (pc.get(r["date"]) or {}).get(k) for k in ("pc_oi", "pc_vol")}})
+                     **{k: (pc.get(r["date"]) or {}).get(k) for k in ("pc_oi", "pc_vol")},
+                     "vix": vix.get(r["date"]), "hv20": hv(turnover, off + j)})
     return {"date": tv[-1]["date"], "days": len(rows), "rows": rows}
 
 

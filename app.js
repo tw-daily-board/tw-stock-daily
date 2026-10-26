@@ -208,7 +208,7 @@ function renderSignals(s) {
     <h2 class="sec">短線（看今天的變化）</h2><div class="sc">${table("short")}</div>
     <h2 class="sec">中期（看近 20～60 個交易日）</h2><div class="sc">${table("mid")}
     <p class="fn">短線門檻：外資現貨 ±30 億、投信 ±10 億、台積電外資 ±1,000 張、前 20 大權值股外資合計 ±5,000 張、全市場借券賣出餘額單日 ±0.3%（增加偏空）、騰落 ±200 家、漲停減跌停 ±9 家、量能放量（20 日量比 ≥1.2）時依漲跌判讀、外資台指與十大特定法人變化 ±1,000 口、外資選擇權淨金額 ±0.5 億、融資在指數下跌時增加偏空／指數上漲時減少偏多、小台散戶多空比較前幾日平均 ±10 個百分點（反向）、P/C 比較前 5 日平均 ±5 個百分點。
-    中期門檻：指數在 20／60 日均線之上偏多、之下偏空；外資 20 日累計 ±1,000 億；借券賣出餘額 5 日 ±1%（增加偏空）；騰落線與指數 20 日同向時依騰落方向、背離時反向判讀；外資台指淨未平倉、散戶多空比（反向）、P/C 比、融資餘額（反向）在近 60 日區間的前後 10% 才判讀。
+    中期門檻：指數在 20／60 日均線之上偏多、之下偏空；外資 20 日累計 ±1,000 億；借券賣出餘額 5 日 ±1%（增加偏空）；騰落線與指數 20 日同向時依騰落方向、背離時反向判讀；外資台指淨未平倉、散戶多空比（反向）、P/C 比、融資餘額（反向）、台指 VIX（反向：恐慌視為偏多）在近 60 日區間的前後 10% 才判讀。
     此為規則統計，不是預測，也不構成投資建議。</p></div>`;
 }
 
@@ -710,6 +710,9 @@ const TR_CHARTS = [
   { k: "fin_amt", t: "融資餘額（上市＋上櫃，億元）", type: "line", f: v => num(v, 2) + " 億" },
   { k: "pc_oi", t: "選擇權 P/C 比（未平倉，%）", type: "line", f: v => num(v, 2) + "%" },
 ];
+// 台指 VIX 與 20 日歷史波動率：單位都是年化 %，可以共用一條 Y 軸
+const VIX_CHART = { k: ["vix", "hv20"], t: "台指 VIX vs 20 日歷史波動率（年化 %）", type: "line", names: ["VIX", "歷史波動率"], colors: ["var(--call)", "var(--put)"], f: v => num(v, 2) + "%" };
+TR_CHARTS.push(VIX_CHART);
 function niceTicks(lo, hi) {
   if (lo === hi) { lo -= 1; hi += 1; }
   const raw = (hi - lo) / 3, p = 10 ** Math.floor(Math.log10(raw)), step = [1, 2, 2.5, 5, 10].map(m => m * p).find(s => s >= raw);
@@ -771,8 +774,8 @@ function renderTrend() {
   const cw = (document.querySelector(".scroll")?.clientWidth || 360) - 28, two = window.innerWidth >= 1100;
   const W = Math.max(250, Math.floor((two ? (cw - 10) / 2 : cw) - 26));
   const charts = TR_CHARTS.map((c, i) => trChart(c, rows, W, i)).join("");
-  const cols = [["date", "日期"], ["index", "加權指數"], ["fi", "外資現貨(億)"], ["fi_oi", "外資台指淨OI"], ["MTX", "小台散戶%"], ["TMF", "微台散戶%"], ["up", "上漲"], ["down", "下跌"], ["adl", "騰落線"], ["fin_amt", "融資餘額(億)"], ["pc_oi", "P/C(未平倉)%"]];
-  const fmt = (k, v) => v == null ? "-" : k === "date" ? md(v) : ["fi", "fi_oi", "MTX", "TMF", "adl"].includes(k) ? `<span class="${cls(v)}">${sg(v, ["fi", "MTX", "TMF"].includes(k) ? 2 : 0)}</span>` : num(v, ["index", "fin_amt", "pc_oi"].includes(k) ? 2 : 0);
+  const cols = [["date", "日期"], ["index", "加權指數"], ["fi", "外資現貨(億)"], ["fi_oi", "外資台指淨OI"], ["MTX", "小台散戶%"], ["TMF", "微台散戶%"], ["up", "上漲"], ["down", "下跌"], ["adl", "騰落線"], ["fin_amt", "融資餘額(億)"], ["pc_oi", "P/C(未平倉)%"], ["vix", "VIX"], ["hv20", "歷史波動率%"]];
+  const fmt = (k, v) => v == null ? "-" : k === "date" ? md(v) : ["fi", "fi_oi", "MTX", "TMF", "adl"].includes(k) ? `<span class="${cls(v)}">${sg(v, ["fi", "MTX", "TMF"].includes(k) ? 2 : 0)}</span>` : num(v, ["index", "fin_amt", "pc_oi", "vix", "hv20"].includes(k) ? 2 : 0);
   const tbl = `<details class="tv2"><summary>以表格檢視</summary><div class="sc"><table class="ft"><thead><tr>${cols.map(([, h]) => `<th>${h}</th>`).join("")}</tr></thead><tbody>` +
     rows.slice().reverse().map(r => `<tr>${cols.map(([k]) => `<td>${fmt(k, r[k])}</td>`).join("")}</tr>`).join("") + "</tbody></table></div></details>";
   return `<h2 class="sec">趨勢（近 ${rows.length} 個交易日，至 ${t.date}）</h2><div class="sc opt">
@@ -781,17 +784,17 @@ function renderTrend() {
     <div class="tgrid">${charts}</div>${tbl}
     <p class="fn">資料來源：證交所（加權指數、外資買賣超、融資、漲跌家數）、櫃買中心（上櫃融資、漲跌家數）、期交所（外資台指期淨未平倉＝外資及陸資在臺股期貨的多空未平倉淨額；散戶多空比＝（全市場未平倉－法人多單）與（全市場未平倉－法人空單）之差÷全市場未平倉；P/C 比＝賣權未平倉÷買權未平倉）。騰落線從圖上第一天起累計，只看形狀，不看絕對值。融資餘額約晚上 9 點公布，下午時當天會先空著。</p></div>`;
 }
-function bindTrend(box) {
+function bindTrend(box, charts = TR_CHARTS, rows = null) {
   const t = store.trend;
   if (!t || t.error) return;
-  const rows = t.rows.slice(-trState.days);
+  rows = rows || t.rows.slice(-trState.days);
   const show = i => {
     trState.sel = i;
     box.querySelectorAll("svg.tch").forEach(svg => {
       const xh = svg.querySelector(".xh"), xx = +svg.dataset.l + +svg.dataset.bw * (i + 0.5);
       xh.setAttribute("x1", xx); xh.setAttribute("x2", xx); xh.setAttribute("visibility", "visible");
     });
-    box.querySelectorAll("[data-tv]").forEach(p => { p.innerHTML = trValue(TR_CHARTS[+p.dataset.tv], rows[i]); });
+    box.querySelectorAll("[data-tv]").forEach(p => { p.innerHTML = trValue(charts[+p.dataset.tv], rows[i]); });
   };
   box.querySelectorAll("svg.tch").forEach(svg => {
     const pick = e => {
@@ -803,8 +806,29 @@ function bindTrend(box) {
   });
   show(trState.sel != null && trState.sel < rows.length ? trState.sel : rows.length - 1);
 }
+// ---- 選擇權頁的波動率區塊（data/trend.json 的 vix、hv20） ----
+const volRows = () => { const t = store.trend; return t && !t.error ? t.rows.slice(-60) : null; };
+function renderVol() {
+  const t = need("trend", ["opt", "trend", "home"]);
+  if (!t) return '<div class="empty">波動率載入中…</div>';
+  if (t.error) return "";
+  const rows = volRows(), v = rows.map(r => r.vix).filter(x => x != null);
+  const last = [...rows].reverse().find(r => r.vix != null);
+  if (!last) return "";
+  const prev = rows[rows.indexOf(last) - 1], d = prev?.vix != null ? last.vix - prev.vix : null;
+  const pr = Math.round(v.filter(x => x < last.vix).length / Math.max(1, v.length - 1) * 100), gap = last.hv20 == null ? null : last.vix - last.hv20;
+  const W = Math.max(250, Math.min(900, (document.querySelector(".scroll")?.clientWidth || 360) - 28 - 26));
+  return `<h2 class="sec">波動率（台指 VIX，${last.date}）</h2><div class="sc opt">
+    <div class="sr vs">
+      <div><h3>台指 VIX</h3><p class="big">${num(last.vix, 2)}</p><p class="mute">較前日 <span class="${cls(d)}">${d == null ? "-" : sg(d, 2)}</span><span class="hm">・60 日區間 ${num(Math.min(...v), 2)}～${num(Math.max(...v), 2)}</span>・60 日第 ${pr} 百分位</p></div>
+      <div><h3>20 日歷史波動率</h3><p class="big">${last.hv20 == null ? "-" : num(last.hv20, 2) + "%"}</p><p class="mute hm">加權指數近 20 日實際漲跌幅的年化標準差</p></div>
+      <div><h3>VIX－歷史波動率</h3><p class="big">${gap == null ? "-" : sg(gap, 2)}</p><p class="mute hm">${gap == null ? "" : gap > 0 ? "選擇權隱含的波動高於實際波動：市場在付較高的保險費（偏恐慌）" : "隱含波動低於實際波動：市場相對安心"}</p></div>
+    </div>
+    <div class="tgrid one">${trChart(VIX_CHART, rows, W, 0)}</div>
+    <p class="fn">台指 VIX：期交所「臺指選擇權波動率指數」，依 CBOE VIX 編製公式，以近月與次近月臺指選擇權價格計算未來 30 天的預期年化波動。數字越高代表市場預期波動越大、通常也越恐慌。歷史波動率由本站用加權指數每日漲跌計算（近 20 日對數報酬標準差 × √252）。點或滑過圖看當天數字。</p></div>`;
+}
 let trResize = null;
-window.addEventListener("resize", () => { clearTimeout(trResize); trResize = setTimeout(() => { if (tab === "trend") render(); }, 200); });
+window.addEventListener("resize", () => { clearTimeout(trResize); trResize = setTimeout(() => { if (tab === "trend" || tab === "opt") render(); }, 200); });
 
 function bindNew(box) {
   const set = (sel, fn) => box.querySelectorAll(sel).forEach(b => b.onclick = () => { fn(b); render(); });
@@ -861,7 +885,9 @@ function render() {
   if (tab === "lt") { loadLongterm(); box.innerHTML = renderLongterm(); bindLongterm(box); return; }
   if (tab in NEW_TABS) { box.innerHTML = NEW_TABS[tab](); bindNew(box); return; }
   if (tab === "opt") {
-    box.innerHTML = data.fut ? renderOpt(data.fut.opt, data.fut.pc, data.fut.date) : '<div class="empty">期交所資料尚未公布，之後排程會自動補上。</div>';
+    box.innerHTML = renderVol() + (data.fut ? renderOpt(data.fut.opt, data.fut.pc, data.fut.date) : '<div class="empty">期交所資料尚未公布，之後排程會自動補上。</div>');
+    const vr = volRows();
+    if (vr) bindTrend(box, [VIX_CHART], vr);
     box.querySelectorAll("[data-opt]").forEach(b => b.onclick = () => { optSel = +b.dataset.opt; optOpen = null; render(); });
     box.querySelectorAll(".br[data-k]").forEach(el => {
       const tog = () => {

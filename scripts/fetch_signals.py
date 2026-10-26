@@ -335,11 +335,15 @@ def signals(out, chips, chips_err, trend=None):
         for k, name, unit, d, high_is, why in (
                 ("MTX", "小台散戶多空比 60 日位置（反向）", "%", 2, -1, "散戶極度偏多視為偏空、極度偏空視為偏多"),
                 ("pc_oi", "P/C 比 60 日位置", "%", 2, 1, "P/C 高代表賣權（支撐）部位多，視為偏多"),
-                ("fin_amt", "融資餘額 60 日位置（反向）", " 億", 0, -1, "融資在高檔代表槓桿偏高，視為偏空")):
+                ("fin_amt", "融資餘額 60 日位置（反向）", " 億", 0, -1, "融資在高檔代表槓桿偏高，視為偏空"),
+                ("vix", "台指 VIX 60 日位置（反向）", "", 2, 1, "VIX 高代表市場恐慌、選擇權保費貴，反向視為偏多；過低代表過度安心，視為偏空")):
             v = window(k)
             if v:
                 p = pct_rank(v, v[-1])
-                add("情緒槓桿", name, f"{v[-1]:,.{d}f}{unit}", rng_text(v, p, unit, d) + "；" + why, extreme(p, high_is), "sentiment", M)
+                extra = ""
+                if k == "vix" and rows[-1].get("hv20") is not None:
+                    extra = f"；20 日歷史波動率 {rows[-1]['hv20']:.2f}%（VIX {'高於' if v[-1] > rows[-1]['hv20'] else '低於'}實際波動 {abs(v[-1] - rows[-1]['hv20']):.2f} 個百分點）"
+                add("情緒槓桿", name, f"{v[-1]:,.{d}f}{unit}", rng_text(v, p, unit, d) + extra + "；" + why, extreme(p, high_is), "sentiment", M)
     else:
         add("中期", "中期訊號", "尚無資料", "趨勢資料還沒更新到今天", 0, None, "mid")
 
