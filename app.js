@@ -95,8 +95,8 @@ const num = (v, d = 0) => v == null ? "-" : v.toLocaleString(undefined, { minimu
 const sg = (v, d = 0) => v == null ? "-" : signed(num(v, d), v);
 // 數值（上）＋ 與前一交易日的變化（下，括號）
 const vd = (v, dv, d = 0) => `<span class="${cls(v)}">${sg(v, d)}</span>` + (dv == null ? "" : `<span class="dv ${cls(dv)}">(${sg(dv, d)})</span>`);
-const ftable = (title, head, rows, extra = "") =>
-  `<h2 class="sec">${title}</h2><div class="sc"><table class="ft"><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>${extra}</div>`;
+const ftable = (title, head, rows, extra = "", tcls = "") =>
+  `<h2 class="sec">${title}</h2><div class="sc"><table class="ft ${tcls}"><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>${extra}</div>`;
 
 // 選擇權支撐壓力：最近到期的幾個系列，可切換
 let optSel = 0, optOpen = null;   // optOpen：點開看口數的履約價（手機沒有滑鼠移上去）
@@ -613,9 +613,9 @@ function renderPre() {
   return `<h2 class="sec">盤前速覽（${p.date}・更新 ${p.updated_at.replace("T", " ").slice(0, 16)}）</h2><div class="sc opt">${stale}<div class="sr ev2">${cards.join("")}</div></div>` +
     worldHtml(p.world) +
     ftable(`期貨夜盤（近月，${md(nd)} 交易日）`, ["合約", "收盤", "漲跌", "漲跌幅", "最高", "最低", "成交量"], night,
-      nightNote + `<p class="fn">夜盤為前一個交易日 15:00～隔天 05:00；期交所把它記在下一個交易日（遇到休市會跳過，例如週五晚上的夜盤記在週一）。漲跌相對前一個交易日的結算價（不是日盤收盤價）。</p>`) +
+      nightNote + `<p class="fn">夜盤為前一個交易日 15:00～隔天 05:00；期交所把它記在下一個交易日（遇到休市會跳過，例如週五晚上的夜盤記在週一）。漲跌相對前一個交易日的結算價（不是日盤收盤價）。手機版不顯示最高、最低。</p>`, "ngt") +
     ftable("匯率（期交所每日外幣參考匯率）", ["", ...fxd.map(md), "較前日"], fx,
-      `<p class="fn">每日外幣參考匯率為前一個交易日的資料；美元／新台幣數字變大＝新台幣貶值。</p>`) + news;
+      `<p class="fn">每日外幣參考匯率為前一個交易日的資料；美元／新台幣數字變大＝新台幣貶值。手機版只顯示最近 3 天。</p>`, "fxt") + news;
 }
 
 // ---- 國際市場（盤前速覽；Yahoo Finance／Nasdaq.com 非官方介面） ----

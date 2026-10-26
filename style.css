@@ -363,3 +363,9 @@ table.wd td .fg{display:inline-block;margin-left:4px}
   table.wd td .fg{display:block;width:fit-content;margin:2px 0 0 auto}
   table.wd th,table.wd td{padding:7px 8px}
 }
+/* 盤前：手機版夜盤不顯示最高／最低，匯率只留最近 3 天＋較前日，不用左右滑 */
+@media (max-width:760px){
+  table.ngt th:nth-child(5),table.ngt td:nth-child(5),table.ngt th:nth-child(6),table.ngt td:nth-child(6){display:none}
+  table.fxt th:nth-child(2),table.fxt td:nth-child(2),table.fxt th:nth-child(3),table.fxt td:nth-child(3){display:none}
+  table.ngt th,table.ngt td,table.fxt th,table.fxt td{padding:8px 7px}
+}
