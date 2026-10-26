@@ -2,9 +2,9 @@ name: daily-update
 
 on:
   schedule:
-    # 盤前：台灣時間週一~五 07:40（UTC 前一天 23:40，所以是週日~週四）：夜盤、匯率、今日事件、昨晚重大訊息
+    # 盤前：台灣時間週一~五 07:15（UTC 前一天 23:15，所以是週日~週四）：夜盤、匯率、今日事件、昨晚重大訊息
     #       夜盤還沒出就每 5 分鐘重試，最多等 30 分鐘
-    - cron: "40 23 * * 0-4"
+    - cron: "15 23 * * 0-4"
     # 盤後：台灣時間 週一~五三次（UTC 07:13 / 08:43 / 12:57）：
     # 15:13 期貨資料（期交所約 15:20 公布，程式內每 5 分鐘重試，最多等 45 分鐘）；
     #       股票三大法人資料較晚，若還沒出就沿用舊的股票資料。
@@ -42,10 +42,10 @@ jobs:
           FUT_WAIT_MINUTES: ${{ github.event.schedule == '13 7 * * 1-5' && '45' || '0' }}
           STOCK_WAIT_MINUTES: ${{ github.event.schedule == '43 8 * * 1-5' && '60' || '0' }}
           MARGIN_WAIT_MINUTES: ${{ github.event.schedule == '57 12 * * 1-5' && '60' || '0' }}
-          PRE_WAIT_MINUTES: ${{ github.event.schedule == '40 23 * * 0-4' && '30' || '0' }}
-          MODE: ${{ github.event.schedule == '40 23 * * 0-4' && 'pre' || inputs.mode }}
+          PRE_WAIT_MINUTES: ${{ github.event.schedule == '15 23 * * 0-4' && '30' || '0' }}
+          MODE: ${{ github.event.schedule == '15 23 * * 0-4' && 'pre' || inputs.mode }}
           # 這次排程負責的資料：最後還是沒抓到今天的就讓流程失敗（手動執行不檢查）
-          REQUIRE: ${{ github.event.schedule == '40 23 * * 0-4' && 'pre' || github.event.schedule == '13 7 * * 1-5' && 'fut' || github.event.schedule == '43 8 * * 1-5' && 'stock' || github.event.schedule == '57 12 * * 1-5' && 'margin' || '' }}
+          REQUIRE: ${{ github.event.schedule == '15 23 * * 0-4' && 'pre' || github.event.schedule == '13 7 * * 1-5' && 'fut' || github.event.schedule == '43 8 * * 1-5' && 'stock' || github.event.schedule == '57 12 * * 1-5' && 'margin' || '' }}
         run: python scripts/fetch_data.py
       - name: 提交資料
         if: ${{ !cancelled() }}

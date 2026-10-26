@@ -578,11 +578,11 @@ const tdPct = k => tdSg(k, 2, "%");
 const kindBtns = (attr, cur) => [["stock", "個股"], ["etf", "ETF"], ["all", "全部"]].map(([v, t]) => btn(attr, v, t, cur === v)).join("");
 const kindOk = (r, k) => k === "all" || (k === "etf") === r.etf;
 
-// ---- 盤前速覽（data/pre.json，07:40 更新） ----
+// ---- 盤前速覽（data/pre.json，07:15 更新） ----
 function renderPre() {
   const p = need("pre", ["pre"]), ev = need("events", ["pre", "news", "exr"]);
   if (!p) return '<div class="empty">載入中…</div>';
-  if (p.error) return '<div class="empty">盤前資料尚未產生：每個交易日早上 07:40 自動更新（夜盤約 05:00 收盤）。</div>';
+  if (p.error) return '<div class="empty">盤前資料尚未產生：每個交易日早上 07:15 自動更新（夜盤約 05:00 收盤）。</div>';
   const today = twToday(), e = p.events;
   const stale = p.date !== today ? `<p class="behind">這是 ${p.date} 的盤前資料（今天 ${today} 休市或尚未更新）。</p>` : "";
   const night = p.night.map(r => `<tr><td class="name">${r.name}<span class="mute2"> ${r.month.slice(2, 4)}/${r.month.slice(4)}</span></td><td>${num(r.close, r.close % 1 ? 2 : 0)}</td>` +
@@ -607,11 +607,34 @@ function renderPre() {
     news = `<h2 class="sec">${md(since)} 收盤後的重大訊息（${xs.length} 則）</h2><div class="sc opt"><ul class="nl">${li || '<li class="mute">沒有</li>'}</ul>
       <p class="mute">${xs.length > 30 ? "只列最新 30 則・" : ""}<button class="lk" data-go="news">看全部重大訊息 ›</button></p></div>`;
   }
-  return `<h2 class="sec">盤前速覽（${p.date}・更新 ${p.updated_at.replace("T", " ").slice(0, 16)}）</h2><div class="sc opt">${stale}<div class="sr">${cards.join("")}</div></div>` +
-    ftable("期貨夜盤（近月）", ["合約", "收盤", "漲跌", "漲跌幅", "最高", "最低", "成交量"], night,
-      `<p class="fn">夜盤為前一晚 15:00～今天 05:00；期交所把它記在今天的交易日。漲跌相對前一個交易日的結算價（不是日盤收盤價）。</p>`) +
+  const nd = p.night_date || p.date;
+  const nightNote = nd !== p.date ? `<p class="behind">今天沒有夜盤資料（休市或尚未公布），這是 ${mdw(nd)} 交易日的夜盤（${mdw(nd)} 前一晚）。</p>` : "";
+  return `<h2 class="sec">盤前速覽（${p.date}・更新 ${p.updated_at.replace("T", " ").slice(0, 16)}）</h2><div class="sc opt">${stale}<div class="sr ev2">${cards.join("")}</div></div>` +
+    worldHtml(p.world) +
+    ftable(`期貨夜盤（近月，${md(nd)} 交易日）`, ["合約", "收盤", "漲跌", "漲跌幅", "最高", "最低", "成交量"], night,
+      nightNote + `<p class="fn">夜盤為前一晚 15:00～隔天 05:00；期交所把它記在隔天的交易日。漲跌相對前一個交易日的結算價（不是日盤收盤價）。</p>`) +
     ftable("匯率（期交所每日外幣參考匯率）", ["", ...fxd.map(md), "較前日"], fx,
       `<p class="fn">每日外幣參考匯率為前一個交易日的資料；美元／新台幣數字變大＝新台幣貶值。</p>`) + news;
+}
+
+// ---- 國際市場（盤前速覽；Yahoo Finance／Nasdaq.com 非官方介面） ----
+function worldHtml(w) {
+  if (!w) return "";
+  const dd = x => x.dec ?? 2;
+  const row = x => x.close == null
+    ? `<tr><td class="name">${esc(x.name)}<span class="mute2"> ${esc(x.sym)}</span></td><td colspan="4" class="mute2">未取得</td></tr>`
+    : `<tr><td class="name">${esc(x.name)}<span class="mute2"> ${esc(x.sym)}</span></td><td>${num(x.close, dd(x))}${x.live ? ' <span class="fg warn">盤中</span>' : ""}</td>` +
+      `<td class="${cls(x.change)}">${sg(x.change, dd(x))}</td><td class="${cls(x.pct)}">${x.pct == null ? "-" : sg(x.pct, 2) + "%"}</td><td class="mute2">${x.date ? md(x.date) : esc(x.time || "")}</td></tr>`;
+  const grp = (rows, key) => [...new Set(rows.map(r => r[key]))].map(g => `<tr class="gh"><td colspan="5">${g}</td></tr>` + rows.filter(r => r[key] === g).map(row).join("")).join("");
+  const head = `<thead><tr><th>項目</th><th>收盤</th><th>漲跌</th><th>漲跌幅</th><th>日期</th></tr></thead>`;
+  const a = w.adr;
+  const adr = a && a.close != null ? `<div class="sr"><div><h3>台積電 ADR（TSM）</h3><p class="big">${num(a.close, 2)} <small class="${cls(a.change)}">${sg(a.change, 2)}（${sg(a.pct, 2)}%）</small>${a.live ? ' <span class="fg warn">盤中</span>' : ""}</p>
+      <p class="mute">${a.date ? md(a.date) + " 收盤" : esc(a.time || "")}・資料 ${a.src}</p></div>
+    ${a.premium != null ? `<div><h3>ADR 溢價</h3><p class="big ${cls(a.premium)}">${sg(a.premium, 2)}%</p><p class="mute">ADR 換算台股 ${num(a.equiv, 1)} 元（× ${num(a.fx, 3)} ÷ 5，${a.fx_src}）vs 台股收盤 ${num(a.tw_close, 1)} 元</p></div>` : ""}</div>` : "";
+  return `<h2 class="sec">國際市場（更新 ${w.updated_at.replace("T", " ").slice(5, 16)}）</h2><div class="sc opt">${adr}</div>
+    <div class="sc"><table class="ft wd">${head}<tbody>${grp(w.markets, "group")}</tbody></table></div>
+    <h2 class="sec">相關美股</h2><div class="sc"><table class="ft wd">${head}<tbody>${grp(w.stocks, "group")}</tbody></table>
+    <p class="fn">資料來源：Yahoo Finance（Nasdaq.com 備援，美股個股），皆為公開但非官方的網頁介面，可能延遲或暫時抓不到；抓不到的項目顯示「未取得」，不補任何數字。「盤中」表示抓取時該市場仍在交易，數字是最新成交價而不是收盤。期貨幾乎全天交易，是抓取時的最新價。日期為該市場當地的交易日。ADR 溢價＝台積電 ADR × 美元兌新台幣 ÷ 5（1 股 ADR＝5 股普通股）相對台股收盤的差距。OpenAI 尚未上市，沒有股價；微軟為其最大股東，甲骨文有大型算力合約。</p></div>`;
 }
 
 // ---- 重大訊息（data/events.json） ----
@@ -1055,7 +1078,7 @@ function renderHome() {
     cards.push(card("pre", "盤前：台指期夜盤", big(num(n.close), cls(n.change)) + `<p class="${cls(n.change)}">${sg(n.change)}（${sg(n.pct, 2)}%）</p>`,
       `更新 ${pre.updated_at.slice(11, 16)}・美元/台幣 ${num(pre.fx[0].values.at(-1), 3)}`));
   } else {
-    cards.push(card("pre", "盤前：台指期夜盤", big("-"), pre && !pre.error ? `目前是 ${md(pre.date)} 的盤前資料；交易日早上 07:40 更新` : "交易日早上 07:40 更新"));
+    cards.push(card("pre", "盤前：台指期夜盤", big("-"), pre && !pre.error ? `目前是 ${md(pre.date)} 的盤前資料；交易日早上 07:15 更新` : "交易日早上 07:15 更新"));
   }
   return `<h2 class="sec">今日重點（股票 ${d.date}${f ? `・期貨 ${f.date}` : ""}）</h2><div class="sc opt"><div class="home">${cards.join("")}</div>
     <p class="fn">點卡片看詳細資料。小走勢圖為近 20 個交易日。綜合判讀依固定規則統計各面向訊號，不是預測，也不構成投資建議。</p></div>`;

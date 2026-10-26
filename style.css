@@ -345,3 +345,21 @@ ul.evl li b{white-space:nowrap}
   .sr.vs .big{font-size:19px}
   .sr.vs .hm{display:none}
 }
+/* 國際市場 */
+table.wd tr.gh td{background:color-mix(in srgb,var(--accent) 6%,var(--card));color:var(--fg);font-weight:600;font-size:13px;text-align:left;position:static}
+table.wd td .fg{display:inline-block;margin-left:4px}
+.big small{font-size:14px;font-weight:600}
+@media (max-width:760px){
+  table.wd th:nth-child(3),table.wd td:nth-child(3),table.wd th:nth-child(5),table.wd td:nth-child(5){display:none}
+  table.wd tr.gh td{display:table-cell}
+  table.wd td .fg{font-size:10px;padding:0 3px}
+  table.wd td.name .mute2{font-size:11px}
+  .sr.ev2{grid-template-columns:1fr 1fr;gap:8px}
+  .sr.ev2>div{padding:8px 10px}
+  .sr.ev2 h3{font-size:12px}
+  .sr.ev2 p{font-size:13px}
+}
+@media (max-width:760px){
+  table.wd td .fg{display:block;width:fit-content;margin:2px 0 0 auto}
+  table.wd th,table.wd td{padding:7px 8px}
+}

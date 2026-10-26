@@ -1,10 +1,12 @@
-"""盤前速覽（台灣時間 07:40 排程）：期貨夜盤、匯率、今日事件。
+"""盤前速覽（台灣時間 07:15 排程）：期貨夜盤、匯率、今日事件。
 
 資料來源（皆為官方公開資料）：
   - 夜盤       期交所 futDataDown（交易時段＝盤後）。期交所把「前一晚 15:00～隔天 05:00」的夜盤記在隔天的交易日，
                所以今天早上查「今天」的日期就是昨晚的夜盤；漲跌是相對前一個交易日的結算價
   - 匯率       期交所 dailyFXRateDown（每日外幣參考匯率，最近一個交易日）
   - 今日事件   data/events.json（除權息）、data/daytrade.json（處置、暫停先賣後買）、data/latest.json（選擇權結算日）
+  - 國際市場   fetch_world（Yahoo Finance／Nasdaq.com，非官方介面）：美歐亞指數、美股期貨、債息匯率原物料、台積電 ADR 與相關美股
+手動執行（休市日或夜盤還沒出）時，夜盤改用最近一個有資料的交易日並標明日期；排程執行則一定要當天的夜盤。
 抓不到夜盤就丟 NotPublished，由排程決定要不要等；不用替代數字。輸出 data/pre.json。
 """
 import json
@@ -78,8 +80,35 @@ def events(d):
             "settle": settle, "stock_date": latest.get("date")}
 
 
-def build(d, now):
-    return {"date": d.isoformat(), "updated_at": now, "night": night(d), "fx": fx(d), "events": events(d)}
+def tw_close(code):
+    files = sorted((DATA / "quotes").glob("*.json"))
+    return (json.loads(files[-1].read_text()).get(code) or [None])[0] if files else None
+
+
+def build(d, now, warn, fallback=False):
+    """fallback＝True（手動執行）：當天沒有夜盤時往前找最近一個有夜盤的交易日"""
+    import fetch_world
+    nd, nt = d, None
+    for back in range(0, 11 if fallback else 1):
+        nd = d - timedelta(days=back)
+        if nd.weekday() >= 5:
+            continue
+        try:
+            nt = night(nd)
+            break
+        except fetch_fut.NotPublished:
+            if not fallback:
+                raise
+    if nt is None:
+        raise fetch_fut.NotPublished(f"期交所 {d} 前 10 天都沒有夜盤資料")
+    fxs = fx(d)
+    try:
+        world = fetch_world.build(warn, tw_close("2330"), fxs[0]["values"][-1])
+    except Exception as e:  # noqa: BLE001
+        warn("國際市場未更新", e)
+        world = None
+    return {"date": d.isoformat(), "night_date": nd.isoformat(), "updated_at": now, "night": nt, "fx": fxs,
+            "events": events(d), "world": world}
 
 
 def write(v):

@@ -484,7 +484,7 @@ def update_sbl(out, deadline, loud):
 
 
 def run_pre(today, require):
-    """盤前（07:40）：夜盤、匯率、今日事件與昨晚的重大訊息。夜盤還沒出就每 5 分鐘重試到 PRE_WAIT_MINUTES"""
+    """盤前（07:15）：夜盤、匯率、今日事件與昨晚的重大訊息。夜盤還沒出就每 5 分鐘重試到 PRE_WAIT_MINUTES"""
     import fetch_fut
     import fetch_pre
     update_events()
@@ -492,7 +492,7 @@ def run_pre(today, require):
     now = lambda: datetime.now(timezone(timedelta(hours=8))).isoformat(timespec="seconds")  # noqa: E731
     while True:
         try:
-            fetch_pre.write(fetch_pre.build(today, now()))
+            fetch_pre.write(fetch_pre.build(today, now(), warn, fallback="pre" not in require))
             print(f"OK 盤前 {today}")
             return
         except fetch_fut.NotPublished as e:
@@ -624,7 +624,7 @@ def main():
     if require and not is_trading_day(today):
         print(f"{today} 休市，不更新")
         return
-    # 盤前排程（07:40）只更新 data/pre.json 與重大訊息，不重抓盤後資料
+    # 盤前排程（07:15）只更新 data/pre.json 與重大訊息，不重抓盤後資料
     if os.environ.get("MODE") == "pre":
         run_pre(today, require)
         return
