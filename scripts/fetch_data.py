@@ -473,7 +473,7 @@ def update_sbl(out, deadline, loud):
                 print(f"借券賣出尚未公布，10 分鐘後重試：{e}", file=sys.stderr)
                 time.sleep(600)
                 continue
-            if loud:
+            if loud:   # 21:00 那次還沒有，check_required 也會讓流程失敗
                 warn("借券賣出尚未公布（保留前一日）", e)
             else:
                 print(f"借券賣出尚未公布（保留前一日）：{e}", file=sys.stderr)
@@ -599,7 +599,8 @@ def check_required(require, out, today):
         if json_date("screens.json") != t:
             errs.append(f"籌碼篩選資料仍是 {json_date('screens.json')}，沒有 {t}")
     if "margin" in require:
-        for name, label in (("value.json", "營收估值篩選"), ("daytrade.json", "當沖觀察"), ("longterm.json", "長期體質篩選")):
+        for name, label in (("value.json", "營收估值篩選"), ("daytrade.json", "當沖觀察"), ("longterm.json", "長期體質篩選"),
+                            ("sbl.json", "借券賣出")):
             if json_date(name) != t:
                 errs.append(f"{label}資料仍是 {json_date(name)}，沒有 {t}")
         if (out.get("signals") or {}).get("chips_date") != t:
