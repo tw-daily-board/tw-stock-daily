@@ -576,43 +576,34 @@ def market_closed(d):
         return True
 
 
+def json_date(name):
+    try:
+        return json.loads((DATA / name).read_text()).get("date")
+    except (OSError, ValueError):
+        return None
+
+
 def check_required(require, out, today):
-    """排程負責的資料最後還是沒有今天的，就回傳錯誤訊息（流程會失敗並顯示在 Annotations）"""
+    """排程負責的資料最後還是沒有今天的，就回傳錯誤訊息（流程會失敗並顯示在 Annotations）。
+    17:00（stock）只要求三大法人、行情、市場強弱、籌碼篩選；櫃買本益比與當沖統計常到 17:30 以後才公布，
+    所以營收估值、當沖觀察、長期體質改由 21:00（margin）那次檢查，那次也會再要求一次全部的股票資料。"""
     t = today.isoformat()
     errs = []
     if "fut" in require and (out.get("fut") or {}).get("date") != t:
         errs.append(f"期貨資料仍是 {(out.get('fut') or {}).get('date')}，沒有 {t}")
-    if "stock" in require:
+    if "stock" in require or "margin" in require:
         if out.get("date") != t:
             errs.append(f"股票資料仍是 {out.get('date')}，沒有 {t}")
         if (out.get("market_breadth") or {}).get("date") != t:
             errs.append("市場強弱資料沒有更新到今天")
-        try:
-            sd = json.loads((DATA / "screens.json").read_text()).get("date")
-        except (OSError, ValueError):
-            sd = None
-        if sd != t:
-            errs.append(f"籌碼篩選資料仍是 {sd}，沒有 {t}")
-        try:
-            vd = json.loads((DATA / "value.json").read_text()).get("date")
-        except (OSError, ValueError):
-            vd = None
-        if vd != t:
-            errs.append(f"營收估值篩選資料仍是 {vd}，沒有 {t}")
-        try:
-            dd = json.loads((DATA / "daytrade.json").read_text()).get("date")
-        except (OSError, ValueError):
-            dd = None
-        if dd != t:
-            errs.append(f"當沖觀察資料仍是 {dd}，沒有 {t}")
-        try:
-            ld = json.loads((DATA / "longterm.json").read_text()).get("date")
-        except (OSError, ValueError):
-            ld = None
-        if ld != t:
-            errs.append(f"長期體質篩選資料仍是 {ld}，沒有 {t}")
-    if "margin" in require and (out.get("signals") or {}).get("chips_date") != t:
-        errs.append(f"融資融券仍是 {(out.get('signals') or {}).get('chips_date')}，沒有 {t}")
+        if json_date("screens.json") != t:
+            errs.append(f"籌碼篩選資料仍是 {json_date('screens.json')}，沒有 {t}")
+    if "margin" in require:
+        for name, label in (("value.json", "營收估值篩選"), ("daytrade.json", "當沖觀察"), ("longterm.json", "長期體質篩選")):
+            if json_date(name) != t:
+                errs.append(f"{label}資料仍是 {json_date(name)}，沒有 {t}")
+        if (out.get("signals") or {}).get("chips_date") != t:
+            errs.append(f"融資融券仍是 {(out.get('signals') or {}).get('chips_date')}，沒有 {t}")
     return errs
 
 
