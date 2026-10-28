@@ -23,6 +23,11 @@ on:
         type: choice
         options: [auto, pre, full]
         default: auto
+      slot:
+        description: "外部定時服務（cron-job.org）用：這次負責的工作 pre＝盤前、fut＝期貨、stock＝股票、margin＝融資；none＝一般手動執行"
+        type: choice
+        options: [none, pre, fut, stock, margin]
+        default: none
 
 permissions:
   contents: write
@@ -41,15 +46,40 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      # 這次負責哪一段：GitHub 排程依 cron 判斷；外部定時服務（cron-job.org）用 workflow_dispatch 的 slot 指定
+      - name: 決定這次的工作
+        id: job
+        env:
+          SCHED: ${{ github.event.schedule }}
+          SLOT_IN: ${{ inputs.slot }}
+          MODE_IN: ${{ inputs.mode }}
+        run: |
+          case "$SCHED" in
+            "47 21 * * 0-4"|"47 22 * * 0-4"|"17 23 * * 0-4") slot=pre ;;
+            "13 7 * * 1-5") slot=fut ;;
+            "43 8 * * 1-5") slot=stock ;;
+            "57 12 * * 1-5") slot=margin ;;
+            *) slot="$SLOT_IN" ;;
+          esac
+          [ "$slot" = "none" ] && slot=""
+          mode="$MODE_IN"; pre=0; fut=0; stock=0; margin=0
+          case "$slot" in
+            pre) mode=pre; pre=45 ;;
+            fut) mode=full; fut=45 ;;
+            stock) mode=full; stock=60 ;;
+            margin) mode=full; margin=60 ;;
+          esac
+          echo "這次的工作：${slot:-一般手動執行}（mode=${mode:-full}）"
+          { echo "require=$slot"; echo "mode=$mode"; echo "pre=$pre"; echo "fut=$fut"; echo "stock=$stock"; echo "margin=$margin"; } >> "$GITHUB_OUTPUT"
       - name: 抓取盤後資料
         env:
-          FUT_WAIT_MINUTES: ${{ github.event.schedule == '13 7 * * 1-5' && '45' || '0' }}
-          STOCK_WAIT_MINUTES: ${{ github.event.schedule == '43 8 * * 1-5' && '60' || '0' }}
-          MARGIN_WAIT_MINUTES: ${{ github.event.schedule == '57 12 * * 1-5' && '60' || '0' }}
-          PRE_WAIT_MINUTES: ${{ contains(fromJSON('["47 21 * * 0-4","47 22 * * 0-4","17 23 * * 0-4"]'), github.event.schedule) && '45' || '0' }}
-          MODE: ${{ contains(fromJSON('["47 21 * * 0-4","47 22 * * 0-4","17 23 * * 0-4"]'), github.event.schedule) && 'pre' || inputs.mode }}
-          # 這次排程負責的資料：最後還是沒抓到今天的就讓流程失敗（手動執行不檢查）
-          REQUIRE: ${{ contains(fromJSON('["47 21 * * 0-4","47 22 * * 0-4","17 23 * * 0-4"]'), github.event.schedule) && 'pre' || github.event.schedule == '13 7 * * 1-5' && 'fut' || github.event.schedule == '43 8 * * 1-5' && 'stock' || github.event.schedule == '57 12 * * 1-5' && 'margin' || '' }}
+          FUT_WAIT_MINUTES: ${{ steps.job.outputs.fut }}
+          STOCK_WAIT_MINUTES: ${{ steps.job.outputs.stock }}
+          MARGIN_WAIT_MINUTES: ${{ steps.job.outputs.margin }}
+          PRE_WAIT_MINUTES: ${{ steps.job.outputs.pre }}
+          MODE: ${{ steps.job.outputs.mode }}
+          # 這次負責的資料：最後還是沒抓到今天的就讓流程失敗（一般手動執行不檢查）
+          REQUIRE: ${{ steps.job.outputs.require }}
         run: python scripts/fetch_data.py
       - name: 提交資料
         if: ${{ !cancelled() }}
