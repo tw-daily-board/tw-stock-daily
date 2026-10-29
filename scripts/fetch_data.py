@@ -484,7 +484,7 @@ def update_sbl(out, deadline, loud):
 
 
 def run_pre(today, require):
-    """盤前（05:47，備援 06:47、07:17）：夜盤、匯率、今日事件與昨晚的重大訊息。夜盤還沒出就每 5 分鐘重試到 PRE_WAIT_MINUTES"""
+    """盤前（06:10，cron-job.org 觸發）：夜盤、匯率、今日事件與昨晚的重大訊息。夜盤還沒出就每 5 分鐘重試到 PRE_WAIT_MINUTES"""
     import fetch_fut
     import fetch_pre
     update_events()
@@ -513,7 +513,7 @@ def warn(title, e):
 
 def attach_fut(out, old):
     """台指期盤後快訊（期交所約 15:20 公布，比股票法人資料早）。以台灣今天的日期查；
-    排程在 15:13 開跑時設 FUT_WAIT_MINUTES，還沒公布就每 5 分鐘重試。沒有資料或失敗時沿用舊的 fut，
+    15:15 期貨（slot=fut）時設 FUT_WAIT_MINUTES，還沒公布就每 5 分鐘重試。沒有資料或失敗時沿用舊的 fut，
     網頁會顯示它自己的日期，不會擋住股票資料。"""
     import fetch_fut
     today = datetime.now(timezone(timedelta(hours=8))).date()
@@ -610,13 +610,13 @@ def check_required(require, out, today):
 
 def main():
     DATA.mkdir(exist_ok=True)
-    # 排程負責的資料（workflow 依排程設定 REQUIRE）：fut＝15:13、stock＝16:43、margin＝20:57；手動執行不設
+    # 這次負責的資料（workflow 依 slot 設定 REQUIRE）：pre＝06:10、fut＝15:15、stock＝17:00、margin＝21:00；一般手動執行與 22:17 保險排程不設
     require = {x for x in os.environ.get("REQUIRE", "").split(",") if x}
     today = datetime.now(timezone(timedelta(hours=8))).date()
     if require and not is_trading_day(today):
         print(f"{today} 休市，不更新")
         return
-    # 盤前排程（05:47／06:47／07:17）只更新 data/pre.json 與重大訊息，不重抓盤後資料
+    # 盤前（06:10，cron-job.org 觸發）只更新 data/pre.json 與重大訊息，不重抓盤後資料
     mode = os.environ.get("MODE", "")
     if mode == "auto":   # 手動執行預設：台灣時間 09:00 前跑盤前，其他時間跑盤後完整更新
         mode = "pre" if datetime.now(timezone(timedelta(hours=8))).hour < 9 else "full"
@@ -630,7 +630,7 @@ def main():
     except (OSError, ValueError):
         old = None
     fresh = True
-    # 股票排程（16:43）設 STOCK_WAIT_MINUTES：資料還沒出時每 10 分鐘重試，最多等這麼久
+    # 股票（17:00，slot=stock）設 STOCK_WAIT_MINUTES：資料還沒出時每 10 分鐘重試，最多等這麼久
     deadline = time.time() + 60 * int(os.environ.get("STOCK_WAIT_MINUTES", "0"))
     while True:
         try:
@@ -641,7 +641,7 @@ def main():
                 print(f"股票資料尚未公布，10 分鐘後重試：{e}", file=sys.stderr)
                 time.sleep(600)
                 continue
-            # 期貨排程（15:13）時股票法人資料通常還沒出：沿用舊的股票資料，只更新期貨
+            # 期貨（15:15）時股票法人資料通常還沒出：沿用舊的股票資料，只更新期貨
             if old is None:
                 raise
             warn("股票資料尚未公布，沿用舊資料", e)

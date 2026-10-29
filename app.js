@@ -578,11 +578,11 @@ const tdPct = k => tdSg(k, 2, "%");
 const kindBtns = (attr, cur) => [["stock", "個股"], ["etf", "ETF"], ["all", "全部"]].map(([v, t]) => btn(attr, v, t, cur === v)).join("");
 const kindOk = (r, k) => k === "all" || (k === "etf") === r.etf;
 
-// ---- 盤前速覽（data/pre.json，約 06:00 更新） ----
+// ---- 盤前速覽（data/pre.json，06:10 更新） ----
 function renderPre() {
   const p = need("pre", ["pre"]), ev = need("events", ["pre", "news", "exr"]);
   if (!p) return '<div class="empty">載入中…</div>';
-  if (p.error) return '<div class="empty">盤前資料尚未產生：每個交易日早上約 06:00 自動更新（夜盤 05:00 收盤；GitHub 排程常延遲，06:47、07:17 會再更新）。</div>';
+  if (p.error) return '<div class="empty">盤前資料尚未產生：每個交易日早上 06:10 自動更新（夜盤 05:00 收盤）。</div>';
   const today = twToday(), e = p.events;
   const stale = p.date !== today ? `<p class="behind">這是 ${p.date} 的盤前資料（今天 ${today} 休市或尚未更新）。</p>` : "";
   const night = p.night.map(r => `<tr><td class="name">${r.name}<span class="mute2"> ${r.month.slice(2, 4)}/${r.month.slice(4)}</span></td><td>${num(r.close, r.close % 1 ? 2 : 0)}</td>` +
@@ -1080,7 +1080,7 @@ function renderHome() {
     cards.push(card("pre", "盤前：台指期夜盤", big(num(n.close), cls(n.change)) + `<p class="${cls(n.change)}">${sg(n.change)}（${sg(n.pct, 2)}%）</p>`,
       `更新 ${pre.updated_at.slice(11, 16)}・美元/台幣 ${num(pre.fx[0].values.at(-1), 3)}`));
   } else {
-    cards.push(card("pre", "盤前：台指期夜盤", big("-"), pre && !pre.error ? `目前是 ${md(pre.date)} 的盤前資料；交易日早上約 06:00 更新` : "交易日早上約 06:00 更新"));
+    cards.push(card("pre", "盤前：台指期夜盤", big("-"), pre && !pre.error ? `目前是 ${md(pre.date)} 的盤前資料；交易日早上 06:10 更新` : "交易日早上 06:10 更新"));
   }
   return `<h2 class="sec">今日重點（股票 ${d.date}${f ? `・期貨 ${f.date}` : ""}）</h2><div class="sc opt"><div class="home">${cards.join("")}</div>
     <p class="fn">點卡片看詳細資料。小走勢圖為近 20 個交易日。綜合判讀依固定規則統計各面向訊號，不是預測，也不構成投資建議。</p></div>`;

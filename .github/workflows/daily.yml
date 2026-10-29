@@ -1,21 +1,13 @@
 name: daily-update
 
 on:
+  # 主要排程由外部定時服務 cron-job.org 準時觸發（GitHub 自己的排程常延遲 30 分鐘～2 小時，甚至略過）：
+  #   台灣時間週一~五 06:10 盤前（slot=pre）、15:15 期貨（fut）、17:00 股票（stock）、21:00 融資等晚間資料（margin）
+  #   用 workflow_dispatch API 帶 slot 參數；權杖只有這個 repo 的 Actions 讀寫權限，存放在 cron-job.org。
+  # 這裡只留一個 GitHub 排程當保險：台灣時間週一~五 22:17（UTC 14:17）補跑一次完整更新，
+  # 不檢查必要資料（即使延遲到半夜也不會誤報）；報錯交給 cron-job.org 的四次。
   schedule:
-    # 盤前：台灣時間週一~五 05:47（UTC 前一天 21:47，所以是週日~週四）：夜盤、匯率、國際市場、今日事件、昨晚重大訊息
-    #       GitHub 排程常延遲 15 分鐘到 1 小時以上，所以提早跑，並在 06:47、07:17 各再跑一次（只更新盤前，重跑無害，
-    #       也順便更新美股期貨等最新價）。夜盤還沒出就每 5 分鐘重試，最多等 45 分鐘。避開整點（整點最擁擠、延遲最久）
-    - cron: "47 21 * * 0-4"
-    - cron: "47 22 * * 0-4"
-    - cron: "17 23 * * 0-4"
-    # 盤後：台灣時間 週一~五三次（UTC 07:13 / 08:43 / 12:57）：
-    # 15:13 期貨資料（期交所約 15:20 公布，程式內每 5 分鐘重試，最多等 45 分鐘）；
-    #       股票三大法人資料較晚，若還沒出就沿用舊的股票資料。
-    # 16:43 股票盤後資料（三大法人約 16:20 公布）；若還沒公布會在程式內每 10 分鐘重試，最多等 60 分鐘。
-    # 20:57 綜合訊號（含融資融券，晚間公布；沒出就每 10 分鐘重試，最多等 60 分鐘），也順便取得修正後的成交量值。
-    - cron: "13 7 * * 1-5"
-    - cron: "43 8 * * 1-5"
-    - cron: "57 12 * * 1-5"
+    - cron: "17 14 * * 1-5"
   workflow_dispatch:
     inputs:
       mode:
@@ -46,7 +38,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      # 這次負責哪一段：GitHub 排程依 cron 判斷；外部定時服務（cron-job.org）用 workflow_dispatch 的 slot 指定
+      # 這次負責哪一段：外部定時服務（cron-job.org）用 workflow_dispatch 的 slot 指定
       - name: 決定這次的工作
         id: job
         env:
@@ -54,13 +46,8 @@ jobs:
           SLOT_IN: ${{ inputs.slot }}
           MODE_IN: ${{ inputs.mode }}
         run: |
-          case "$SCHED" in
-            "47 21 * * 0-4"|"47 22 * * 0-4"|"17 23 * * 0-4") slot=pre ;;
-            "13 7 * * 1-5") slot=fut ;;
-            "43 8 * * 1-5") slot=stock ;;
-            "57 12 * * 1-5") slot=margin ;;
-            *) slot="$SLOT_IN" ;;
-          esac
+          # GitHub 保險排程（22:17）：slot 空白＝只補跑完整更新、不檢查必要資料；其餘由 workflow_dispatch 的 slot 決定
+          if [ -n "$SCHED" ]; then slot=""; else slot="$SLOT_IN"; fi
           [ "$slot" = "none" ] && slot=""
           mode="$MODE_IN"; pre=0; fut=0; stock=0; margin=0
           case "$slot" in

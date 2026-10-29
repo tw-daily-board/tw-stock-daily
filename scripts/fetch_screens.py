@@ -65,7 +65,7 @@ def from_quotes(quotes):
 
 def load_quotes(get_json, fetch_tpex_quotes, dates, quotes_today, gap):
     """dates：交易日清單（新→舊，第一天是今天）；回傳每日行情 list，順序與 dates 相同。
-    當天用最新抓到的行情（20:57 那輪會是修正後的數字），以前的交易日讀快取，沒有才回補。"""
+    當天用最新抓到的行情（21:00 那輪會是修正後的數字），以前的交易日讀快取，沒有才回補。"""
     QUOTE_DIR.mkdir(parents=True, exist_ok=True)
     out = []
     for i, d in enumerate(dates):
