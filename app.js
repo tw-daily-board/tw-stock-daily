@@ -699,6 +699,30 @@ function renderSbl() {
     <div class="sc">${t.html}<p class="fn">資料來源：證交所、櫃買中心「融券借券賣出餘額」。借券賣出是借股票來賣（多為法人避險或放空），餘額增加代表放空部位變多；還券代表回補。5 日增減＝今天餘額－${sb.dates.length >= 6 ? sb.dates[5] : "5 個交易日前"} 餘額。占成交量＝當日借券賣出÷當日成交量。外資當日為三大法人買賣超（張）。借券賣出餘額約晚上 9 點後公布。</p></div>`;
 }
 
+// ---- 融資融券（data/margin.json） ----
+const MGN_MODES = [["d1", "融資增加（當日）", "fin_d1", -1], ["d1r", "融資減少（當日）", "fin_d1", 1], ["d5", "融資增加（5 日）", "fin_d5", -1], ["d5r", "融資減少（5 日）", "fin_d5", 1],
+  ["use", "融資使用率", "fin_use", -1], ["sd1", "融券增加（當日）", "short_d1", -1], ["ratio", "券資比", "ratio", -1]];
+const mgnState = { mode: "d1", kind: "stock" };
+function renderMgn() {
+  const mg = need("margin", ["mgn"]);
+  if (!mg) return '<div class="empty">載入中…</div>';
+  if (mg.error) return '<div class="empty">融資融券資料尚未產生，之後排程會自動補上。</div>';
+  const s = mgnState, m = MGN_MODES.find(x => x[0] === s.mode);
+  // 券資比、使用率只看有一定規模的（融資至少 1,000 張），避免冷門股的極端比例
+  const rows = mg.rows.filter(r => kindOk(r, s.kind) && (!["ratio", "use"].includes(s.mode) || r.fin >= 1000));
+  const t = stable("mgn", rows, [
+    ["rank", "#", tdRank], ["code", "代號", tdCode], ["name", "名稱", tdName], ["close", "收盤價", tdNum("close", 2)], ["pct", "漲跌幅", tdPct("pct")],
+    ["volume", "成交量", tdNum("volume")], ["fin", "融資餘額", tdNum("fin")], ["fin_d1", "融資增減", tdSg("fin_d1")], ["fin_d5", "融資 5 日", tdSg("fin_d5")],
+    ["fin_use", "融資使用率", r => td(r.fin_use == null ? "-" : num(r.fin_use, 2) + "%")], ["short", "融券餘額", tdNum("short")], ["short_d1", "融券增減", tdSg("short_d1")],
+    ["ratio", "券資比", r => td(r.ratio == null ? "-" : num(r.ratio, 2) + "%")], ["fi", "外資當日", tdSg("fi")],
+  ], tsort.mgn ? null : { k: m[2], dir: m[3] });
+  return `<h2 class="sec">融資融券（${mg.date}）</h2><div class="sc opt">
+    <nav class="optnav">${MGN_MODES.map(([k, tt]) => btn("data-mm", k, tt, s.mode === k)).join("")}</nav>
+    <nav class="optnav">${kindBtns("data-mk", s.kind)}</nav>
+    <p class="mute">依「${m[1]}」排序，取前 100 檔${["ratio", "use"].includes(s.mode) ? "（只列融資餘額 1,000 張以上）" : ""}；單位：張。</p></div>
+    <div class="sc">${t.html}<p class="fn">資料來源：證交所「融資融券彙總」、櫃買中心「上櫃股票融資融券餘額」。融資是散戶借錢買股，餘額增加代表槓桿買盤變多；股價跌、融資卻增加，常被視為籌碼較亂。融券是借股票來賣（放空），券資比＝融券餘額÷融資餘額，偏高時有軋空的可能。融資使用率＝融資餘額÷融資限額。5 日＝今天餘額－${mg.dates.length >= 6 ? mg.dates[5] : "5 個交易日前"} 餘額。外資當日為三大法人買賣超（張）。約晚上 9 點公布。</p></div>`;
+}
+
 // ---- 大戶持股（data/holders.json，集保每週） ----
 const BIG_MODES = [["up", "千張大戶增加", "d1000", -1, true], ["down", "千張大戶減少", "d1000", 1, true], ["conc", "股東人數減少", "dpeople", 1, true], ["high", "千張大戶比例", "r1000", -1, false]];
 const bigState = { mode: null, kind: "stock" };
@@ -861,6 +885,8 @@ function bindNew(box) {
   set("[data-nh]", () => { newsState.hot = !newsState.hot; });
   set("[data-xk]", b => { exrState.kind = b.dataset.xk; });
   set("[data-bm]", b => { sblState.mode = b.dataset.bm; delete tsort.sbl; });
+  set("[data-mm]", b => { mgnState.mode = b.dataset.mm; delete tsort.mgn; });
+  set("[data-mk]", b => { mgnState.kind = b.dataset.mk; });
   set("[data-bk]", b => { sblState.kind = b.dataset.bk; });
   set("[data-gm]", b => { bigState.mode = b.dataset.gm; delete tsort.big; });
   set("[data-gk]", b => { bigState.kind = b.dataset.gk; });
@@ -888,7 +914,7 @@ function renderFut(f) {
       '<p class="fn">淨部位＝十大買方部位－十大賣方部位；特定人＝特定法人，非特定人＝其餘交易人；近月為最近月份契約，其他月含週契約；括號為較前一交易日的變化。</p>');
 }
 
-const NEW_TABS = { pre: renderPre, news: renderNews, exr: renderExr, sbl: renderSbl, big: renderBig, trend: renderTrend };
+const NEW_TABS = { pre: renderPre, news: renderNews, exr: renderExr, mgn: renderMgn, sbl: renderSbl, big: renderBig, trend: renderTrend };
 
 function render() {
   const box = document.querySelector(".scroll");
@@ -960,8 +986,8 @@ const GROUPS = [
   ["home", "總覽", ICON('<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>'), [["home", "今日重點"], ["pre", "盤前速覽"], ["sig", "綜合訊號"]]],
   ["mkt", "大盤", ICON('<path d="M3 20h18"/><path d="M4 16l5-5 4 3 7-8"/>'), [["mkt", "市場強弱"], ["trend", "趨勢"]]],
   ["fo", "期權", ICON('<path d="M7 20V5"/><path d="M3 9l4-4 4 4"/><path d="M17 4v15"/><path d="M13 15l4 4 4-4"/>'), [["fut", "台指期"], ["opt", "選擇權支撐壓力"]]],
-  ["chip", "籌碼", ICON('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>'), [["cap", "權值股"], ["stocks", "熱門個股"], ["etfs", "熱門 ETF"], ["fi", "外資買賣超"], ["fi_etf", "ETF 外資"], ["scr", "籌碼篩選"], ["sbl", "借券賣出"], ["big", "大戶持股"]]],
-  ["pick", "選股", ICON('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>'), [["val", "營收估值"], ["lt", "長期體質"]]],
+  ["chip", "籌碼", ICON('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>'), [["cap", "權值股"], ["stocks", "熱門個股"], ["etfs", "熱門 ETF"], ["fi", "外資買賣超"], ["fi_etf", "ETF 外資"], ["mgn", "融資融券"], ["sbl", "借券賣出"], ["big", "大戶持股"]]],
+  ["pick", "選股", ICON('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>'), [["val", "營收估值"], ["lt", "長期體質"], ["scr", "籌碼篩選"]]],
   ["ev", "事件", ICON('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'), [["news", "重大訊息"], ["exr", "除權息"]]],
   ["dt", "當沖", ICON('<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>'), [["dt", "當沖觀察"]]],
 ];

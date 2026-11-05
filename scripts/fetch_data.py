@@ -459,28 +459,31 @@ def update_events():
 
 
 def update_sbl(out, deadline, loud):
-    """借券賣出餘額（晚間公布）：當天還沒出就每 10 分鐘重試到 deadline，仍沒有就保留舊檔
+    """借券賣出餘額與個股融資融券（晚間公布）：當天還沒出就每 10 分鐘重試到 deadline，仍沒有就保留舊檔
     （晚間排程 loud=True 才發警告；下午的排程本來就還沒公布，只印訊息）"""
     import fetch_lending
     dates = [date.fromisoformat(x) for x in out.get("inst_dates", [])]
-    while True:
-        try:
-            days = fetch_lending.load_sbl(get_json, dates, REQUEST_GAP)
-            fetch_lending.write(fetch_lending.SBL_OUT, fetch_lending.build_sbl(days, dates, is_common_stock))
-            return
-        except fetch_lending.SblNotReady as e:
-            if time.time() + 600 < deadline:
-                print(f"借券賣出尚未公布，10 分鐘後重試：{e}", file=sys.stderr)
-                time.sleep(600)
-                continue
-            if loud:   # 21:00 那次還沒有，check_required 也會讓流程失敗
-                warn("借券賣出尚未公布（保留前一日）", e)
-            else:
-                print(f"借券賣出尚未公布（保留前一日）：{e}", file=sys.stderr)
-            return
-        except Exception as e:  # noqa: BLE001
-            warn("借券賣出未更新", e)
-            return
+    jobs = [("借券賣出", fetch_lending.load_sbl, fetch_lending.build_sbl, fetch_lending.SBL_OUT),
+            ("個股融資融券", fetch_lending.load_margin, fetch_lending.build_margin, fetch_lending.MARGIN_OUT)]
+    for label, load, build_fn, path in jobs:
+        while True:
+            try:
+                days = load(get_json, dates, REQUEST_GAP)
+                fetch_lending.write(path, build_fn(days, dates, is_common_stock))
+                break
+            except fetch_lending.SblNotReady as e:
+                if time.time() + 600 < deadline:
+                    print(f"{label}尚未公布，10 分鐘後重試：{e}", file=sys.stderr)
+                    time.sleep(600)
+                    continue
+                if loud:   # 21:00 那次還沒有，check_required 也會讓流程失敗
+                    warn(f"{label}尚未公布（保留前一日）", e)
+                else:
+                    print(f"{label}尚未公布（保留前一日）：{e}", file=sys.stderr)
+                break
+            except Exception as e:  # noqa: BLE001
+                warn(f"{label}未更新", e)
+                break
 
 
 def run_pre(today, require):
@@ -600,7 +603,7 @@ def check_required(require, out, today):
             errs.append(f"籌碼篩選資料仍是 {json_date('screens.json')}，沒有 {t}")
     if "margin" in require:
         for name, label in (("value.json", "營收估值篩選"), ("daytrade.json", "當沖觀察"), ("longterm.json", "長期體質篩選"),
-                            ("sbl.json", "借券賣出")):
+                            ("sbl.json", "借券賣出"), ("margin.json", "個股融資融券")):
             if json_date(name) != t:
                 errs.append(f"{label}資料仍是 {json_date(name)}，沒有 {t}")
         if (out.get("signals") or {}).get("chips_date") != t:

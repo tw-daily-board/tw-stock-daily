@@ -1,8 +1,10 @@
-"""籌碼補充：借券賣出餘額（每日）、千張大戶持股比例（每週）。
+"""籌碼補充：借券賣出餘額（每日）、個股融資融券（每日）、千張大戶持股比例（每週）。
 
 資料來源（皆為官方公開資料）：
   - 借券賣出   www.twse.com.tw/rwd/zh/marginTrading/TWT93U（上市）、www.tpex.org.tw/www/zh-tw/margin/sbl（上櫃）
                「融券借券賣出餘額」表，可指定日期；快取在 data/sbl/YYYYMMDD.json，保留 SBL_DAYS 個交易日
+  - 融資融券   www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?selectType=ALL（上市）、www.tpex.org.tw/www/zh-tw/margin/balance（上櫃）
+               單位都是張；快取在 data/margin/YYYYMMDD.json，保留 SBL_DAYS 個交易日
   - 集保分級   opendata.tdcc.com.tw/getOD.ashx?id=1-5（集保戶股權分散表，每週一次，只提供最新一週）
                快取在 data/tdcc/YYYYMMDD.json，保留 TDCC_WEEKS 週；週變化要累積兩週以上才算得出來
 單位：股 -> 張（÷1000）。全部用固定規則整理，不用 LLM。輸出 data/sbl.json、data/holders.json。
@@ -20,6 +22,8 @@ TDCC_DIR = ROOT / "data" / "tdcc"
 INST_DIR = ROOT / "data" / "inst"
 QUOTE_DIR = ROOT / "data" / "quotes"
 SBL_OUT = ROOT / "data" / "sbl.json"
+MARGIN_DIR = ROOT / "data" / "margin"
+MARGIN_OUT = ROOT / "data" / "margin.json"
 HOLDERS_OUT = ROOT / "data" / "holders.json"
 SBL_DAYS = 6            # 今天＋前 5 個交易日（算 5 日增減）
 TDCC_WEEKS = 13         # 約一季
@@ -112,6 +116,86 @@ def build_sbl(days, dates, is_common_stock):
             "volume": vol, "bal": bal, "sell": sell, "ret": ret, "short": short,
             "d1": bal - prev[2] if prev else None, "d5": bal - old[2] if old else None,
             "sell_ratio": round(sell / vol * 100, 1) if vol and sell is not None else None,
+            "fi": round(inst[c][0] / 1000) if c in inst else None,
+        })
+    return {"date": d0.isoformat(), "dates": [d.isoformat() for d in dates[:len(days)]], "rows": rows}
+
+
+# ---------- 個股融資融券 ----------
+def num(s):
+    try:
+        return float(str(s).replace(",", "").strip())
+    except ValueError:
+        return None
+
+
+def fetch_margin(get_json, d, gap):
+    """{代號: [名稱, 市場, 融資餘額, 融資前日餘額, 融資限額, 融券餘額, 融券前日餘額, 資券互抵]}（張）；還沒公布回傳 None"""
+    j = get_json(f"https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={d:%Y%m%d}&selectType=ALL&response=json")
+    t = next((t for t in j.get("tables") or [] if "融資融券彙總" in (t.get("title") or "")), None)
+    if j.get("stat") != "OK" or j.get("date") != f"{d:%Y%m%d}" or not t or not t.get("data"):
+        return None
+    out = {}
+    # 代號, 名稱, 融資(買進, 賣出, 現金償還, 前日餘額, 今日餘額, 限額), 融券(買進, 賣出, 現券償還, 前日餘額, 今日餘額, 限額), 資券互抵, 註記
+    for r in t["data"]:
+        out[str(r[0]).strip()] = [str(r[1]).strip(), "上市", num(r[6]), num(r[5]), num(r[7]), num(r[12]), num(r[11]), num(r[14])]
+    time.sleep(gap)
+    p = get_json(f"https://www.tpex.org.tw/www/zh-tw/margin/balance?date={d:%Y/%m/%d}&response=json")
+    pt = (p.get("tables") or [None])[0]
+    if str(p.get("date")) != f"{d:%Y%m%d}" or not pt or not pt.get("data"):
+        return None
+    # 代號, 名稱, 前資餘額, 資買, 資賣, 現償, 資餘額, 資屬證金, 資使用率, 資限額, 前券餘額, 券賣, 券買, 券償, 券餘額, 券屬證金, 券使用率, 券限額, 資券相抵
+    for r in pt["data"]:
+        out[str(r[0]).strip()] = [str(r[1]).strip(), "上櫃", num(r[6]), num(r[2]), num(r[9]), num(r[14]), num(r[10]), num(r[18])]
+    return out
+
+
+def load_margin(get_json, dates, gap):
+    """dates：交易日清單（新→舊）；當天還沒公布丟 SblNotReady，以前缺的日子回補"""
+    MARGIN_DIR.mkdir(parents=True, exist_ok=True)
+    out = []
+    for i, d in enumerate(dates[:SBL_DAYS]):
+        p = MARGIN_DIR / f"{d:%Y%m%d}.json"
+        if p.exists():
+            out.append(json.loads(p.read_text()))
+            continue
+        time.sleep(gap)
+        rec = fetch_margin(get_json, d, gap)
+        if not rec:
+            if i == 0:
+                raise SblNotReady(f"{d} 個股融資融券尚未公布")
+            raise RuntimeError(f"{d} 個股融資融券抓不到")
+        p.write_text(json.dumps(rec, ensure_ascii=False, separators=(",", ":")))
+        out.append(rec)
+    keep = {f"{d:%Y%m%d}.json" for d in dates[:SBL_DAYS]}
+    for p in MARGIN_DIR.glob("*.json"):
+        if p.name not in keep:
+            p.unlink()
+    return out
+
+
+def build_margin(days, dates, is_common_stock):
+    d0 = dates[0]
+    q = read_day(QUOTE_DIR, d0)
+    inst = read_day(INST_DIR, d0)
+    rows = []
+    for c, (name, market, fin, fin_prev, fin_lim, short, short_prev, offset) in days[0].items():
+        if not (is_common_stock(c) or c.startswith("00")) or fin is None:
+            continue
+        old = days[-1].get(c) if len(days) == SBL_DAYS else None
+        close, chg, vol = (q.get(c) or [None, None, None])
+        if not fin and not short:
+            continue
+        rows.append({
+            "code": c, "name": name, "market": market, "etf": c.startswith("00"),
+            "close": close, "pct": round(chg / (close - chg) * 100, 2) if close and chg is not None and close - chg > 0 else None,
+            "volume": vol, "fin": int(fin), "fin_d1": int(fin - fin_prev) if fin_prev is not None else None,
+            "fin_d5": int(fin - old[2]) if old and old[2] is not None else None,
+            "fin_use": round(fin / fin_lim * 100, 2) if fin_lim else None,
+            "short": int(short or 0), "short_d1": int(short - short_prev) if short is not None and short_prev is not None else None,
+            "short_d5": int(short - old[5]) if old and old[5] is not None and short is not None else None,
+            "ratio": round(short / fin * 100, 2) if fin and short is not None else None,
+            "offset": int(offset) if offset is not None else None,
             "fi": round(inst[c][0] / 1000) if c in inst else None,
         })
     return {"date": d0.isoformat(), "dates": [d.isoformat() for d in dates[:len(days)]], "rows": rows}
