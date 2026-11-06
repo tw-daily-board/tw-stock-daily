@@ -133,8 +133,8 @@ function renderOpt(o, pc, date) {
       <div><h3>支撐：指數以下賣權未平倉最大</h3><ol>${lst(s.support, "以下")}</ol></div>
       <div><h3>此系列 P/C（未平倉）</h3><p class="big">${s.pc == null ? "-" : num(s.pc, 1) + "%"}</p><p class="mute">買權 ${num(s.call_oi)} 口・賣權 ${num(s.put_oi)} 口</p></div>
     </div>
-    <div class="lg"><span><i class="put"></i>賣權未平倉（支撐）</span><span><i class="call"></i>買權未平倉（壓力）</span><span class="mute">加權指數上下 ${Math.round(o.chart_range * 100)}%；點任一列（電腦也可滑鼠移上去）看口數與變化</span></div>
-    <div class="bf">${rows}</div>${tbl}
+    <div class="lg"><span><i class="put"></i>賣權未平倉（支撐）</span><span><i class="call"></i>買權未平倉（壓力）</span><span class="mute">加權指數上下 ${Math.round(o.chart_range * 100)}%${o.chart_min_oi ? `，僅列買權或賣權達 ${o.chart_min_oi} 口的價位` : ""}；點任一列（電腦也可滑鼠移上去）看口數與變化</span></div>
+    ${s.rows.length ? `<div class="bf">${rows}</div>${tbl}` : `<div class="empty">此系列沒有未平倉達 ${o.chart_min_oi || 0} 口的價位。</div>`}
     <p class="fn">支撐壓力在加權指數上下 ${Math.round(o.sr_range * 100)}% 內找，排除遠價外舊倉；括號為較前一交易日的未平倉變化。週選分週三（W）與週五（F）到期，月選於每月第三個週三結算。</p>
     ${pcRows ? `<h3 class="pch">全市場 P/C 比（近 10 日）</h3><table class="ft pc"><thead><tr><th>日期</th><th>未平倉</th><th>成交量</th></tr></thead><tbody>${pcRows}</tbody></table>` : ""}
   </div>`;

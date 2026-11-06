@@ -30,8 +30,9 @@ ALL_MONTHS = ("999912", "999999")   # 大額交易人「所有契約」
 SKIP_MONTHS = ("666666",) + ALL_MONTHS  # 666666＝週契約合計
 OPT_SERIES = 3          # 顯示最近到期的幾個系列
 OPT_KEEP_DAYS = 40      # 快照只存這麼多天內到期的系列（算未平倉變化用）
-SR_RANGE = 0.08         # 支撐壓力只在指數上下 8% 內找，排除遠價外舊倉
-CHART_RANGE = 0.04      # 分布圖畫指數上下 4%
+SR_RANGE = 0.15         # 支撐壓力只在指數上下 15% 內找，排除遠價外舊倉
+CHART_RANGE = 0.10      # 分布圖畫指數上下 10%
+CHART_MIN_OI = 500      # 分布圖只畫買權或賣權至少一邊未平倉達 500 口的履約價
 WEEKDAY = "一二三四五六日"
 
 
@@ -221,15 +222,19 @@ def opt_view(snap, prev, ref):
             ks.sort(key=lambda k: -s[side][k])
             return [{"strike": int(k), "oi": s[side][k], "d": dif(side, k)} for k in ks[:3]]
 
-        strikes = sorted({int(k) for side in "cp" for k in s[side] if abs(int(k) - ref) <= ref * CHART_RANGE})
+        resist, support = top("c", SR_RANGE), top("p", SR_RANGE)
+        # 分布圖：雙邊都未達 CHART_MIN_OI 的價位不畫；支撐壓力價位一定畫（即使在 10% 外或未達門檻）
+        strikes = sorted({int(k) for side in "cp" for k in s[side] if abs(int(k) - ref) <= ref * CHART_RANGE
+                          and max(s["c"].get(k, 0), s["p"].get(k, 0)) >= CHART_MIN_OI}
+                         | {x["strike"] for x in resist + support})
         tc, tp = sum(s["c"].values()), sum(s["p"].values())
         out.append({
             "code": code, "exp": e.isoformat(), "label": f"{e.month}/{e.day}（{WEEKDAY[e.weekday()]}）{kind}",
             "call_oi": tc, "put_oi": tp, "pc": round(tp / tc * 100, 1) if tc else None,
-            "resist": top("c", SR_RANGE), "support": top("p", SR_RANGE),
+            "resist": resist, "support": support,
             "rows": [[k, s["c"].get(str(k), 0), s["p"].get(str(k), 0), dif("c", str(k)), dif("p", str(k))] for k in strikes],
         })
-    return {"ref": ref, "series": out, "sr_range": SR_RANGE, "chart_range": CHART_RANGE}
+    return {"ref": ref, "series": out, "sr_range": SR_RANGE, "chart_range": CHART_RANGE, "chart_min_oi": CHART_MIN_OI}
 
 
 # ---------- 現貨（證交所） ----------
