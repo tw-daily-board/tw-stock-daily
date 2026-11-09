@@ -10,7 +10,7 @@
    "flat": 52,
    "index": 41661.7,
    "change": 1960.06,
-   "value": 8639.35
+   "value": 8770.26
   },
   "tpex": {
    "up": 727,
@@ -22,8 +22,8 @@
    "index": 321.97,
    "change": 17.95
   },
-  "ratio5": 0.82,
-  "ratio20": 0.88,
+  "ratio5": 0.83,
+  "ratio20": 0.89,
   "trend": [
    {
     "date": "2026-10-27",
@@ -128,7 +128,7 @@
     "date": "2026-11-09",
     "index": 41661.7,
     "change": 1960.06,
-    "value": 8639.35,
+    "value": 8770.26,
     "tpex_value": 1306.78,
     "up": 1531,
     "down": 351,
@@ -139,91 +139,91 @@
   "sectors": [
    {
     "name": "半導體",
-    "value": 3052.27,
-    "share": 40.96,
+    "value": 3111.13,
+    "share": 41.03,
     "pct": 5.4
    },
    {
     "name": "電子零組件",
-    "value": 1826.25,
-    "share": 24.51,
+    "value": 1843.31,
+    "share": 24.31,
     "pct": 7.58
    },
    {
     "name": "電腦及週邊設備",
-    "value": 451.31,
-    "share": 6.06,
+    "value": 458.98,
+    "share": 6.05,
     "pct": 4.92
    },
    {
     "name": "光電",
-    "value": 415.55,
-    "share": 5.58,
+    "value": 416.04,
+    "share": 5.49,
     "pct": 7.52
    },
    {
     "name": "其他電子",
-    "value": 308.59,
+    "value": 314.28,
     "share": 4.14,
     "pct": 6.09
    },
    {
     "name": "金融保險",
-    "value": 288.17,
-    "share": 3.87,
+    "value": 296.1,
+    "share": 3.91,
     "pct": 2.35
    },
    {
-    "name": "通信網路",
-    "value": 174.84,
-    "share": 2.35,
-    "pct": 1.16
-   },
-   {
     "name": "塑膠",
-    "value": 165.07,
-    "share": 2.22,
+    "value": 181.58,
+    "share": 2.39,
     "pct": 9.45
    },
    {
+    "name": "通信網路",
+    "value": 180.78,
+    "share": 2.38,
+    "pct": 1.16
+   },
+   {
     "name": "電機機械",
-    "value": 162.16,
-    "share": 2.18,
+    "value": 170.11,
+    "share": 2.24,
     "pct": 6.74
    },
    {
     "name": "生技醫療",
     "value": 104.36,
-    "share": 1.4,
+    "share": 1.38,
     "pct": 5.11
    },
    {
     "name": "航運",
     "value": 85.77,
-    "share": 1.15,
+    "share": 1.13,
     "pct": 0.96
    },
    {
     "name": "電子通路",
-    "value": 64.99,
+    "value": 65.66,
     "share": 0.87,
     "pct": -0.05
    },
    {
     "name": "資訊服務",
     "value": 48.68,
-    "share": 0.65,
+    "share": 0.64,
     "pct": -2.13
    },
    {
     "name": "玻璃陶瓷",
     "value": 41.1,
-    "share": 0.55,
+    "share": 0.54,
     "pct": 9.35
    },
    {
     "name": "其他",
-    "value": 30.51,
+    "value": 31.05,
     "share": 0.41,
     "pct": 0.99
    },
@@ -240,21 +240,21 @@
     "pct": 2.95
    },
    {
-    "name": "紡織纖維",
-    "value": 27.38,
-    "share": 0.37,
-    "pct": 0.59
+    "name": "鋼鐵",
+    "value": 28.9,
+    "share": 0.38,
+    "pct": 1.11
    },
    {
-    "name": "鋼鐵",
-    "value": 27.28,
-    "share": 0.37,
-    "pct": 1.11
+    "name": "紡織纖維",
+    "value": 27.38,
+    "share": 0.36,
+    "pct": 0.59
    },
    {
     "name": "食品",
     "value": 20.02,
-    "share": 0.27,
+    "share": 0.26,
     "pct": -0.21
    },
    {
@@ -284,7 +284,7 @@
    {
     "name": "電器電纜",
     "value": 10.91,
-    "share": 0.15,
+    "share": 0.14,
     "pct": 4.65
    },
    {
@@ -331,7 +331,7 @@
    }
   ]
  },
- "updated_at": "2026-11-09T17:04:12+08:00",
+ "updated_at": "2026-11-09T21:02:38+08:00",
  "inst_dates": [
   "2026-11-09",
   "2026-11-06",
@@ -353,8 +353,8 @@
    "close": 2235.0,
    "change": 100.0,
    "pct": 4.68,
-   "volume": 44725,
-   "value": 99993671215.0,
+   "volume": 45883,
+   "value": 102581042177.0,
    "high": 2290.0,
    "low": 2190.0,
    "inst_days": 10,
@@ -381,8 +381,8 @@
    "close": 3725.0,
    "change": 335.0,
    "pct": 9.88,
-   "volume": 9883,
-   "value": 35686549825.0,
+   "volume": 10071,
+   "value": 36386849825.0,
    "high": 3725.0,
    "low": 3450.0,
    "inst_days": 10,
@@ -409,8 +409,8 @@
    "close": 239.0,
    "change": 14.5,
    "pct": 6.46,
-   "volume": 48976,
-   "value": 11725410037.0,
+   "volume": 50353,
+   "value": 12054513037.0,
    "high": 246.0,
    "low": 226.5,
    "inst_days": 10,
@@ -437,8 +437,8 @@
    "close": 1160.0,
    "change": 105.0,
    "pct": 9.95,
-   "volume": 16502,
-   "value": 19038065815.0,
+   "volume": 17098,
+   "value": 19719940485.0,
    "high": 1160.0,
    "low": 1105.0,
    "inst_days": 10,
@@ -465,8 +465,8 @@
    "close": 561.0,
    "change": 34.0,
    "pct": 6.45,
-   "volume": 29738,
-   "value": 16651436516.0,
+   "volume": 30415,
+   "value": 17031233516.0,
    "high": 579.0,
    "low": 529.0,
    "inst_days": 10,
@@ -493,8 +493,8 @@
    "close": 153.5,
    "change": 5.5,
    "pct": 3.72,
-   "volume": 23602,
-   "value": 3615847284.0,
+   "volume": 24438,
+   "value": 3744173284.0,
    "high": 156.5,
    "low": 148.5,
    "inst_days": 10,
@@ -521,8 +521,8 @@
    "close": 263.0,
    "change": 23.5,
    "pct": 9.81,
-   "volume": 50972,
-   "value": 13173981302.0,
+   "volume": 57247,
+   "value": 14824306302.0,
    "high": 263.0,
    "low": 244.5,
    "inst_days": 10,
@@ -549,8 +549,8 @@
    "close": 111.0,
    "change": 5.0,
    "pct": 4.72,
-   "volume": 29915,
-   "value": 3323015346.0,
+   "volume": 31309,
+   "value": 3477749346.0,
    "high": 113.5,
    "low": 105.5,
    "inst_days": 10,
@@ -577,8 +577,8 @@
    "close": 75.9,
    "change": 2.5,
    "pct": 3.41,
-   "volume": 56872,
-   "value": 4270838772.0,
+   "volume": 63031,
+   "value": 4739986872.0,
    "high": 76.2,
    "low": 72.8,
    "inst_days": 10,
@@ -633,8 +633,8 @@
    "close": 370.0,
    "change": 26.5,
    "pct": 7.71,
-   "volume": 41361,
-   "value": 15262773802.0,
+   "volume": 41561,
+   "value": 15333748802.0,
    "high": 376.0,
    "low": 354.5,
    "inst_days": 10,
@@ -661,8 +661,8 @@
    "close": 757.0,
    "change": 30.0,
    "pct": 4.13,
-   "volume": 42402,
-   "value": 31980056907.0,
+   "volume": 42783,
+   "value": 32268473907.0,
    "high": 782.0,
    "low": 722.0,
    "inst_days": 10,
@@ -689,8 +689,8 @@
    "close": 159.0,
    "change": -4.5,
    "pct": -2.75,
-   "volume": 24223,
-   "value": 3868859948.0,
+   "volume": 24350,
+   "value": 3889052948.0,
    "high": 163.0,
    "low": 158.0,
    "inst_days": 10,
@@ -717,8 +717,8 @@
    "close": 296.5,
    "change": 6.0,
    "pct": 2.07,
-   "volume": 19201,
-   "value": 5719672418.0,
+   "volume": 20474,
+   "value": 6096581006.0,
    "high": 304.0,
    "low": 290.0,
    "inst_days": 10,
@@ -857,8 +857,8 @@
    "close": 1645.0,
    "change": 90.0,
    "pct": 5.79,
-   "volume": 4317,
-   "value": 7114084605.0,
+   "volume": 4497,
+   "value": 7410184605.0,
    "high": 1700.0,
    "low": 1570.0,
    "inst_days": 10,
@@ -885,8 +885,8 @@
    "close": 6705.0,
    "change": 500.0,
    "pct": 8.06,
-   "volume": 4193,
-   "value": 27650060405.0,
+   "volume": 4443,
+   "value": 29326310405.0,
    "high": 6825.0,
    "low": 6285.0,
    "inst_days": 10,
@@ -1091,6 +1091,32 @@
    "rank": 7
   },
   {
+   "code": "2891",
+   "name": "中信金",
+   "market": "上市",
+   "close": 75.9,
+   "change": 2.5,
+   "pct": 3.41,
+   "volume": 63031,
+   "value": 4739986872.0,
+   "high": 76.2,
+   "low": 72.8,
+   "inst_days": 10,
+   "fi_today": 4552,
+   "fi_prev": -15870,
+   "fi_10d": -19343,
+   "it_today": 7645,
+   "it_prev": 8431,
+   "it_10d": 67025,
+   "dl_today": 1158,
+   "dl_prev": 12014,
+   "dl_10d": 33790,
+   "inst_today": 13355,
+   "inst_prev": 4576,
+   "inst_10d": 81473,
+   "rank": 8
+  },
+  {
    "code": "3576",
    "name": "聯合再生",
    "market": "上市",
@@ -1114,7 +1140,7 @@
    "inst_today": 1239,
    "inst_prev": 2489,
    "inst_10d": 4401,
-   "rank": 8
+   "rank": 9
   },
   {
    "code": "2002",
@@ -1140,33 +1166,33 @@
    "inst_today": -14247,
    "inst_prev": -30689,
    "inst_10d": 11585,
-   "rank": 9
+   "rank": 10
   },
   {
-   "code": "2891",
-   "name": "中信金",
+   "code": "1303",
+   "name": "南亞",
    "market": "上市",
-   "close": 75.9,
-   "change": 2.5,
-   "pct": 3.41,
-   "volume": 56872,
-   "value": 4270838772.0,
-   "high": 76.2,
-   "low": 72.8,
+   "close": 263.0,
+   "change": 23.5,
+   "pct": 9.81,
+   "volume": 57247,
+   "value": 14824306302.0,
+   "high": 263.0,
+   "low": 244.5,
    "inst_days": 10,
-   "fi_today": 4552,
-   "fi_prev": -15870,
-   "fi_10d": -19343,
-   "it_today": 7645,
-   "it_prev": 8431,
-   "it_10d": 67025,
-   "dl_today": 1158,
-   "dl_prev": 12014,
-   "dl_10d": 33790,
-   "inst_today": 13355,
-   "inst_prev": 4576,
-   "inst_10d": 81473,
-   "rank": 10
+   "fi_today": 609,
+   "fi_prev": -7519,
+   "fi_10d": -78543,
+   "it_today": 434,
+   "it_prev": 3639,
+   "it_10d": 21966,
+   "dl_today": 212,
+   "dl_prev": 2616,
+   "dl_10d": 8006,
+   "inst_today": 1255,
+   "inst_prev": -1264,
+   "inst_10d": -48572,
+   "rank": 11
   },
   {
    "code": "2883",
@@ -1192,33 +1218,33 @@
    "inst_today": 1413,
    "inst_prev": 5759,
    "inst_10d": -4515,
-   "rank": 11
+   "rank": 12
   },
   {
-   "code": "1303",
-   "name": "南亞",
+   "code": "2317",
+   "name": "鴻海",
    "market": "上市",
-   "close": 263.0,
-   "change": 23.5,
-   "pct": 9.81,
-   "volume": 50972,
-   "value": 13173981302.0,
-   "high": 263.0,
-   "low": 244.5,
+   "close": 239.0,
+   "change": 14.5,
+   "pct": 6.46,
+   "volume": 50353,
+   "value": 12054513037.0,
+   "high": 246.0,
+   "low": 226.5,
    "inst_days": 10,
-   "fi_today": 609,
-   "fi_prev": -7519,
-   "fi_10d": -78543,
-   "it_today": 434,
-   "it_prev": 3639,
-   "it_10d": 21966,
-   "dl_today": 212,
-   "dl_prev": 2616,
-   "dl_10d": 8006,
-   "inst_today": 1255,
-   "inst_prev": -1264,
-   "inst_10d": -48572,
-   "rank": 12
+   "fi_today": 3669,
+   "fi_prev": -14082,
+   "fi_10d": 4654,
+   "it_today": 4885,
+   "it_prev": 2102,
+   "it_10d": 13974,
+   "dl_today": 574,
+   "dl_prev": 4267,
+   "dl_10d": 14640,
+   "inst_today": 9128,
+   "inst_prev": -7714,
+   "inst_10d": 33264,
+   "rank": 13
   },
   {
    "code": "6770",
@@ -1244,32 +1270,6 @@
    "inst_today": 4253,
    "inst_prev": 10506,
    "inst_10d": -27530,
-   "rank": 13
-  },
-  {
-   "code": "2317",
-   "name": "鴻海",
-   "market": "上市",
-   "close": 239.0,
-   "change": 14.5,
-   "pct": 6.46,
-   "volume": 48976,
-   "value": 11725410037.0,
-   "high": 246.0,
-   "low": 226.5,
-   "inst_days": 10,
-   "fi_today": 3669,
-   "fi_prev": -14082,
-   "fi_10d": 4654,
-   "it_today": 4885,
-   "it_prev": 2102,
-   "it_10d": 13974,
-   "dl_today": 574,
-   "dl_prev": 4267,
-   "dl_10d": 14640,
-   "inst_today": 9128,
-   "inst_prev": -7714,
-   "inst_10d": 33264,
    "rank": 14
   },
   {
@@ -1299,6 +1299,32 @@
    "rank": 15
   },
   {
+   "code": "2330",
+   "name": "台積電",
+   "market": "上市",
+   "close": 2235.0,
+   "change": 100.0,
+   "pct": 4.68,
+   "volume": 45883,
+   "value": 102581042177.0,
+   "high": 2290.0,
+   "low": 2190.0,
+   "inst_days": 10,
+   "fi_today": -8759,
+   "fi_prev": -22844,
+   "fi_10d": -103603,
+   "it_today": 2585,
+   "it_prev": 4669,
+   "it_10d": 25178,
+   "dl_today": -764,
+   "dl_prev": 8702,
+   "dl_10d": 26555,
+   "inst_today": -6938,
+   "inst_prev": -9473,
+   "inst_10d": -51871,
+   "rank": 16
+  },
+  {
    "code": "2468",
    "name": "華經",
    "market": "上市",
@@ -1322,7 +1348,7 @@
    "inst_today": 834,
    "inst_prev": -681,
    "inst_10d": -822,
-   "rank": 16
+   "rank": 17
   },
   {
    "code": "3189",
@@ -1331,8 +1357,8 @@
    "close": 690.0,
    "change": 19.0,
    "pct": 2.83,
-   "volume": 45092,
-   "value": 31162380899.0,
+   "volume": 45117,
+   "value": 31179925899.0,
    "high": 718.0,
    "low": 666.0,
    "inst_days": 10,
@@ -1348,32 +1374,6 @@
    "inst_today": -7893,
    "inst_prev": 133,
    "inst_10d": -23958,
-   "rank": 17
-  },
-  {
-   "code": "2330",
-   "name": "台積電",
-   "market": "上市",
-   "close": 2235.0,
-   "change": 100.0,
-   "pct": 4.68,
-   "volume": 44725,
-   "value": 99993671215.0,
-   "high": 2290.0,
-   "low": 2190.0,
-   "inst_days": 10,
-   "fi_today": -8759,
-   "fi_prev": -22844,
-   "fi_10d": -103603,
-   "it_today": 2585,
-   "it_prev": 4669,
-   "it_10d": 25178,
-   "dl_today": -764,
-   "dl_prev": 8702,
-   "dl_10d": 26555,
-   "inst_today": -6938,
-   "inst_prev": -9473,
-   "inst_10d": -51871,
    "rank": 18
   },
   {
@@ -2018,8 +2018,8 @@
    "close": 75.9,
    "change": 2.5,
    "pct": 3.41,
-   "volume": 56872,
-   "value": 4270838772.0,
+   "volume": 63031,
+   "value": 4739986872.0,
    "high": 76.2,
    "low": 72.8,
    "inst_days": 10,
@@ -2126,8 +2126,8 @@
    "close": 239.0,
    "change": 14.5,
    "pct": 6.46,
-   "volume": 48976,
-   "value": 11725410037.0,
+   "volume": 50353,
+   "value": 12054513037.0,
    "high": 246.0,
    "low": 226.5,
    "inst_days": 10,
@@ -2207,8 +2207,8 @@
    "close": 132.5,
    "change": 12.0,
    "pct": 9.96,
-   "volume": 37782,
-   "value": 4902729914.0,
+   "volume": 37942,
+   "value": 4920089914.0,
    "high": 132.5,
    "low": 124.0,
    "inst_days": 10,
@@ -2288,8 +2288,8 @@
    "close": 159.0,
    "change": -4.5,
    "pct": -2.75,
-   "volume": 24223,
-   "value": 3868859948.0,
+   "volume": 24350,
+   "value": 3889052948.0,
    "high": 163.0,
    "low": 158.0,
    "inst_days": 10,
@@ -2452,8 +2452,8 @@
    "close": 757.0,
    "change": 30.0,
    "pct": 4.13,
-   "volume": 42402,
-   "value": 31980056907.0,
+   "volume": 42783,
+   "value": 32268473907.0,
    "high": 782.0,
    "low": 722.0,
    "inst_days": 10,
@@ -2479,8 +2479,8 @@
    "close": 2235.0,
    "change": 100.0,
    "pct": 4.68,
-   "volume": 44725,
-   "value": 99993671215.0,
+   "volume": 45883,
+   "value": 102581042177.0,
    "high": 2290.0,
    "low": 2190.0,
    "inst_days": 10,
@@ -2506,8 +2506,8 @@
    "close": 561.0,
    "change": 34.0,
    "pct": 6.45,
-   "volume": 29738,
-   "value": 16651436516.0,
+   "volume": 30415,
+   "value": 17031233516.0,
    "high": 579.0,
    "low": 529.0,
    "inst_days": 10,
@@ -2533,8 +2533,8 @@
    "close": 690.0,
    "change": 19.0,
    "pct": 2.83,
-   "volume": 45092,
-   "value": 31162380899.0,
+   "volume": 45117,
+   "value": 31179925899.0,
    "high": 718.0,
    "low": 666.0,
    "inst_days": 10,
@@ -2695,8 +2695,8 @@
    "close": 181.5,
    "change": -4.0,
    "pct": -2.16,
-   "volume": 16816,
-   "value": 3072653862.0,
+   "volume": 17025,
+   "value": 3111423362.0,
    "high": 189.0,
    "low": 180.0,
    "inst_days": 10,
@@ -2776,8 +2776,8 @@
    "close": 370.0,
    "change": 26.5,
    "pct": 7.71,
-   "volume": 41361,
-   "value": 15262773802.0,
+   "volume": 41561,
+   "value": 15333748802.0,
    "high": 376.0,
    "low": 354.5,
    "inst_days": 10,
@@ -2803,8 +2803,8 @@
    "close": 296.5,
    "change": 6.0,
    "pct": 2.07,
-   "volume": 19201,
-   "value": 5719672418.0,
+   "volume": 20474,
+   "value": 6096581006.0,
    "high": 304.0,
    "low": 290.0,
    "inst_days": 10,
@@ -4007,7 +4007,7 @@
   "index": {
    "close": 41661.7,
    "change": 1960.06,
-   "value_tril": 0.863934624473,
+   "value_tril": 0.877025617232,
    "pct": 4.94
   },
   "market": [
@@ -4110,7 +4110,7 @@
    },
    {
     "name": "投信",
-    "cash": 267.49,
+    "cash": 313.12,
     "fut": 95551,
     "call": -20995,
     "call_amt": -24.37,
@@ -4138,7 +4138,7 @@
    },
    {
     "name": "合計",
-    "cash": -945.26,
+    "cash": -899.63,
     "fut": -5194,
     "fut_d": 2619,
     "call": 3084,
@@ -4771,15 +4771,45 @@
     "oi": 51.19
    }
   ],
-  "updated_at": "2026-11-09T17:04:44+08:00"
+  "updated_at": "2026-11-09T21:03:07+08:00"
  },
  "signals": {
   "date": "2026-11-09",
   "fut_date": "2026-11-09",
-  "chips_date": null,
+  "chips_date": "2026-11-09",
   "trend_date": "2026-11-09",
-  "generated_at": "2026-11-09T17:05:49+08:00",
+  "generated_at": "2026-11-09T21:04:15+08:00",
   "items": [
+   {
+    "group": "現貨法人",
+    "name": "外資現貨",
+    "value": "-900.56 億",
+    "detail": "連續賣超 8 天；近 10 日累計 -7,877.97 億",
+    "bias": -1,
+    "dim": "spot",
+    "term": "short",
+    "scored": true
+   },
+   {
+    "group": "現貨法人",
+    "name": "投信現貨",
+    "value": "+313.12 億",
+    "detail": "連續買超 10 天；近 10 日累計 +2,287.19 億",
+    "bias": 1,
+    "dim": "spot",
+    "term": "short",
+    "scored": true
+   },
+   {
+    "group": "現貨法人",
+    "name": "自營商現貨",
+    "value": "-312.19 億",
+    "detail": "連續賣超 8 天；近 10 日累計 -3,191.86 億",
+    "bias": 0,
+    "dim": null,
+    "term": "short",
+    "scored": false
+   },
    {
     "group": "現貨法人",
     "name": "台積電外資",
@@ -4803,12 +4833,12 @@
    {
     "group": "借券賣出",
     "name": "全市場借券賣出餘額",
-    "value": "尚未公布",
-    "detail": "借券賣出餘額約晚上 9 點後公布",
-    "bias": 0,
-    "dim": null,
+    "value": "+75,830 張",
+    "detail": "餘額 15,474,932 張（+0.49%）；當日借券賣出 102,932 張、還券 26,603 張；餘額增加代表放空部位變多",
+    "bias": -1,
+    "dim": "spot",
     "term": "short",
-    "scored": false
+    "scored": true
    },
    {
     "group": "市場廣度",
@@ -4823,8 +4853,8 @@
    {
     "group": "市場廣度",
     "name": "量能",
-    "value": "0.88 倍（20 日）",
-    "detail": "上市成交 8,639 億，量平上漲；5 日量比 0.82 倍",
+    "value": "0.89 倍（20 日）",
+    "detail": "上市成交 8,770 億，量平上漲；5 日量比 0.83 倍",
     "bias": 0,
     "dim": "breadth",
     "term": "short",
@@ -4844,7 +4874,7 @@
     "group": "市場廣度",
     "name": "資金集中類股",
     "value": "半導體、電子零組件、電腦及週邊設備",
-    "detail": "半導體 占 41.0%（+5.40%）；電子零組件 占 24.5%（+7.58%）；電腦及週邊設備 占 6.1%（+4.92%）",
+    "detail": "半導體 占 41.0%（+5.40%）；電子零組件 占 24.3%（+7.58%）；電腦及週邊設備 占 6.0%（+4.92%）",
     "bias": 0,
     "dim": null,
     "term": "short",
@@ -4852,9 +4882,19 @@
    },
    {
     "group": "融資融券",
-    "name": "融資融券",
-    "value": "尚未公布",
-    "detail": "2026-11-09 上市融資融券尚未公布",
+    "name": "融資餘額（上市＋上櫃）",
+    "value": "+60.43 億",
+    "detail": "餘額 7,101 億；連續增加 1 天；近 9 日 -1,225.81 億",
+    "bias": 0,
+    "dim": "sentiment",
+    "term": "short",
+    "scored": true
+   },
+   {
+    "group": "融資融券",
+    "name": "券資比（上市）",
+    "value": "2.43%",
+    "detail": "融券 222,076 張／融資 9,153,428 張；前一日 2.69%",
     "bias": 0,
     "dim": null,
     "term": "short",
@@ -4943,8 +4983,18 @@
    {
     "group": "現貨法人",
     "name": "外資現貨 20 日累計（上市）",
-    "value": "-15,954 億",
-    "detail": "近 19 個有資料的交易日；平均每日 -840 億",
+    "value": "-16,855 億",
+    "detail": "近 20 個有資料的交易日；平均每日 -843 億",
+    "bias": -1,
+    "dim": "spot",
+    "term": "mid",
+    "scored": true
+   },
+   {
+    "group": "借券賣出",
+    "name": "全市場借券賣出餘額 5 日變化",
+    "value": "+5.33%",
+    "detail": "11/02 起 +782,491 張；增加代表放空部位變多",
     "bias": -1,
     "dim": "spot",
     "term": "mid",
@@ -4957,6 +5007,16 @@
     "detail": "60 日區間 -101,771～-74,081 口，目前在第 0 百分位；20 日變化 -22,670 口；接近區間高檔（淨空最少）偏多、低檔偏空",
     "bias": -1,
     "dim": "fut",
+    "term": "mid",
+    "scored": true
+   },
+   {
+    "group": "市場廣度",
+    "name": "騰落線 vs 指數（20 日）",
+    "value": "-8,117 家",
+    "detail": "指數 20 日 -8,145 點；與指數同方向",
+    "bias": -1,
+    "dim": "breadth",
     "term": "mid",
     "scored": true
    },
@@ -4976,6 +5036,16 @@
     "value": "51.19%",
     "detail": "60 日區間 39.73～123.58%，目前在第 7 百分位；P/C 高代表賣權（支撐）部位多，視為偏多",
     "bias": -1,
+    "dim": "sentiment",
+    "term": "mid",
+    "scored": true
+   },
+   {
+    "group": "情緒槓桿",
+    "name": "融資餘額 60 日位置（反向）",
+    "value": "7,101 億",
+    "detail": "60 日區間 7,040～8,817 億，目前在第 2 百分位；融資在高檔代表槓桿偏高，視為偏空",
+    "bias": 1,
     "dim": "sentiment",
     "term": "mid",
     "scored": true
@@ -5003,9 +5073,9 @@
       "key": "spot",
       "name": "現貨籌碼",
       "lean": -1,
-      "bull": 0,
-      "bear": 2,
-      "n": 2
+      "bull": 1,
+      "bear": 4,
+      "n": 5
      },
      {
       "key": "fut",
@@ -5029,16 +5099,16 @@
       "lean": 0,
       "bull": 0,
       "bear": 0,
-      "n": 2
+      "n": 3
      }
     ]
    },
    "mid": {
     "name": "中期",
     "verdict": "偏空",
-    "bull": 0,
-    "bear": 3,
-    "neutral": 1,
+    "bull": 1,
+    "bear": 4,
+    "neutral": 0,
     "dims": [
      {
       "key": "position",
@@ -5053,8 +5123,8 @@
       "name": "現貨籌碼",
       "lean": -1,
       "bull": 0,
-      "bear": 1,
-      "n": 1
+      "bear": 2,
+      "n": 2
      },
      {
       "key": "fut",
@@ -5065,17 +5135,47 @@
       "n": 1
      },
      {
+      "key": "breadth",
+      "name": "市場廣度",
+      "lean": -1,
+      "bull": 0,
+      "bear": 1,
+      "n": 1
+     },
+     {
       "key": "sentiment",
       "name": "情緒槓桿",
-      "lean": 0,
-      "bull": 1,
+      "lean": 1,
+      "bull": 2,
       "bear": 1,
-      "n": 3
+      "n": 4
      }
     ]
    }
   },
-  "sbl": null,
+  "sbl": {
+   "date": "2026-11-09",
+   "bal": 15474932,
+   "chg": 75830,
+   "pct": 0.49,
+   "top": [
+    {
+     "code": "0050",
+     "name": "元大台灣50",
+     "d1": 5318
+    },
+    {
+     "code": "3481",
+     "name": "群創",
+     "d1": 5281
+    },
+    {
+     "code": "2303",
+     "name": "聯電",
+     "d1": 4858
+    }
+   ]
+  },
   "score": {
    "bull": 1,
    "bear": 2,
