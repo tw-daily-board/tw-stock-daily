@@ -387,3 +387,51 @@ details.nw.sub summary{padding:6px 0}
 tr.xr{display:none}
 button.more{display:block;width:calc(100% - 24px);margin:10px 12px;box-sizing:border-box;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--accent);font:inherit;font-weight:600;cursor:pointer}
 .sc.opt>button.more{width:100%;margin:10px 0}
+
+/* ---- 版面優化（第二批） ---- */
+.mshort{display:none}
+td.sb i{width:calc(var(--w,0) * 100px)}
+/* 綜合訊號：可收合的短線／中期 */
+details.sgd>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-weight:700;border-top:1px solid var(--line);margin-top:8px}
+details.sgd>summary::-webkit-details-marker{display:none}
+details.sgd>summary::before{content:"▸";color:var(--accent);font-size:12px}
+details.sgd[open]>summary::before{content:"▾"}
+.sgs{margin-left:auto;font-size:12.5px;font-weight:400;color:var(--mute)}
+.sgs b{font-size:13px}
+/* 首頁：綜合判讀的面向方格、結算卡片的支撐壓力 */
+.dg{display:grid;grid-template-columns:auto 22px 22px;gap:3px 8px;align-items:center;justify-content:start;margin-top:6px;font-size:12px;color:var(--mute)}
+.dg span:nth-child(3n+2),.dg span:nth-child(3n){text-align:center;font-size:11px}
+.dg i{display:block;width:22px;height:10px;border-radius:3px;border:1px dashed var(--line)}
+.dg i.u{background:var(--up);border:0}.dg i.d{background:var(--down);border:0}.dg i.n{background:var(--mute);opacity:.35;border:0}
+.hc .chg{white-space:nowrap}
+ul.srl li.s2 b{font-weight:400;color:var(--mute)}
+ul.srl li{line-height:1.6}
+/* 台指期：散戶多空比卡片（手機） */
+.rtc{display:grid;grid-template-columns:98px 1fr;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px}
+.rtc h3{margin:0 0 2px;font-size:13px;color:var(--mute);font-weight:600}
+.rtc .big{margin:0;font-size:22px;line-height:1.2}
+.rtc p.mute{margin:0;font-size:12px}
+.rtc dl{display:grid;grid-template-columns:1fr auto;gap:2px 8px;margin:0;font-size:13px;font-variant-numeric:tabular-nums}
+.rtc dt{color:var(--mute);white-space:nowrap}.rtc dd{margin:0;text-align:right}
+.rtc small{font-size:11.5px}
+/* 電腦寬螢幕：欄數少的表格兩欄並排，不再撐滿整個畫面 */
+@media (min-width:1100px){
+  .w2{display:grid;grid-template-columns:1fr 1fr;gap:0 24px;align-items:start;border-top:1px solid var(--line);margin-top:8px}
+  .w2>div{min-width:0}
+}
+@media (max-width:600px){
+  .mfull{display:none}.mshort{display:inline}
+  table.m5 th,table.m5 td{padding:8px 6px}
+  table.m5 th:first-child,table.m5 td:first-child{padding-left:12px}
+  table.m5 th:last-child,table.m5 td:last-child{padding-right:12px}
+  table.m5 th{font-size:12px}
+  td.sb i{width:calc(var(--w,0) * 34px);margin-right:4px}
+  .hc .chg{font-size:13px}
+  /* 點擊範圍加大（不改變版面） */
+  .br{height:24px}.br .pl,.br .cl,.br i{height:14px}
+  td a.sl{display:inline-block;padding:9px 0;margin:-9px 0}
+  button.lk{padding:9px 0;margin:-9px 0}
+  button.vt{padding:10px 8px 10px 0;margin:-6px 0}
+  .tv summary,details.tv2 summary{padding:8px 0}
+}
+.sc:not(.opt)>p.mute,.sc:not(.opt)>p.behind{margin:6px 14px}
