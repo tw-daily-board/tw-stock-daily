@@ -91,6 +91,7 @@ function sumOf(rows) {
 }
 
 // ---- 台指期盤後快訊：收盤行情表、三大法人籌碼變化、十大交易人期權淨部位 ----
+const isMob = () => matchMedia("(max-width:600px)").matches;
 const num = (v, d = 0) => v == null ? "-" : v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 const sg = (v, d = 0) => v == null ? "-" : signed(num(v, d), v);
 // 數值（上）＋ 與前一交易日的變化（下，括號）
@@ -176,12 +177,12 @@ function renderMarket(m) {
     <td class="${cls(r.adl)}">${sg(r.adl)}</td></tr>`).join("");
   const maxShare = Math.max(1, ...m.sectors.map(s => s.share));
   const sec = m.sectors.map(s => `<tr><td>${s.name}</td><td class="${cls(s.pct)}">${s.pct == null ? "-" : sg(s.pct, 2) + "%"}</td><td>${num(s.value, 2)}</td>
-    <td class="sb"><i style="width:${s.share / maxShare * 100}px"></i>${num(s.share, 2)}%</td></tr>`).join("");
+    <td class="sb"><i style="--w:${(s.share / maxShare).toFixed(4)}"></i>${num(s.share, 2)}%</td></tr>`).join("");
   return `<h2 class="sec">市場整體強弱（${m.date}）</h2><div class="sc opt">${cards}</div>` +
     ftable("近 10 個交易日：指數、量能與騰落", ["日期", "加權指數", "漲跌", "上市成交(億)", "上櫃成交(億)", "上漲家數", "下跌家數", "騰落（漲－跌）", "累計騰落"], [tr],
       '<p class="fn">漲跌家數為上市＋上櫃股票（不含 ETF、權證）；騰落＝上漲家數－下跌家數，累計騰落從表內第一天起算，指數漲但累計騰落往下時，代表只有少數權值股在撐盤。量比＝當日上市成交金額 ÷ 前 5 日／20 日平均。</p>') +
-    ftable("上市類股：漲跌與資金占比", ["類股", "類股指數漲跌", "成交金額(億)", "占上市成交"], [sec],
-      '<p class="fn">成交金額由上市普通股依產業別加總，占比以這些類股合計為分母；漲跌為證交所各類股指數。</p>');
+    ftable("上市類股：漲跌與資金占比", isMob() ? ["類股", "漲跌", "成交(億)", "占比"] : ["類股", "類股指數漲跌", "成交金額(億)", "占上市成交"], [sec],
+      '<p class="fn">成交金額由上市普通股依產業別加總，占比以這些類股合計為分母；漲跌為證交所各類股指數。</p>', "m5 sect");
 }
 
 // ---- 綜合分析：規則式訊號表 ----
@@ -207,15 +208,16 @@ function renderSignals(s) {
     }).join("");
     return `<table class="ft sig"><thead><tr><th>面向</th><th>項目</th><th>數值</th><th>判讀</th><th>說明</th></tr></thead><tbody>${rows}</tbody></table>`;
   };
+  const sum = term => { const t = s.terms[term]; return `<span class="sgs"><b class="${vcls(t.verdict)}">${t.verdict}</b>・${t.bull} 多 ${t.bear} 空</span>`; };
   const dates = [`股票 ${s.date}`, s.fut_date && `期貨 ${s.fut_date}`, `融資融券 ${s.chips_date || "尚未公布"}`, `趨勢 ${s.trend_date || "-"}`].filter(Boolean).join("・");
   return `<h2 class="sec">綜合分析（${s.date}）</h2><div class="sc opt">
     <div class="sr">${termBox(s.terms.short)}${termBox(s.terms.mid)}
       <div><h3>資料日期</h3><p>${dates}</p><p class="mute">產出時間 ${s.generated_at.replace("T", " ").slice(0, 16)}</p>
         <p class="mute">判讀方式：先把每個面向內的計分項目加總，得出該面向偏多、偏空或中性；偏多與偏空的面向數相差 2 個以上，才判為偏多或偏空，否則為多空互見。</p></div>
     </div></div>
-    <h2 class="sec">短線（看今天的變化）</h2><div class="sc">${table("short")}</div>
-    <h2 class="sec">中期（看近 20～60 個交易日）</h2><div class="sc">${table("mid")}
-    <p class="fn">短線門檻：外資現貨 ±30 億、投信 ±10 億、台積電外資 ±1,000 張、前 20 大權值股外資合計 ±5,000 張、全市場借券賣出餘額單日 ±0.3%（增加偏空）、騰落 ±200 家、漲停減跌停 ±9 家、量能放量（20 日量比 ≥1.2）時依漲跌判讀、外資台指與十大特定法人變化 ±1,000 口、外資選擇權淨金額 ±0.5 億、融資在指數下跌時增加偏空／指數上漲時減少偏多、小台散戶多空比較前幾日平均 ±10 個百分點（反向）、P/C 比較前 5 日平均 ±5 個百分點。
+    <details class="sgd" open><summary class="sec">短線（看今天的變化）${sum("short")}</summary><div class="sc">${table("short")}</div></details>
+    <details class="sgd"${isMob() ? "" : " open"}><summary class="sec">中期（看近 20～60 個交易日）${sum("mid")}</summary><div class="sc">${table("mid")}</div></details>
+    <div class="sc"><p class="fn">短線門檻：外資現貨 ±30 億、投信 ±10 億、台積電外資 ±1,000 張、前 20 大權值股外資合計 ±5,000 張、全市場借券賣出餘額單日 ±0.3%（增加偏空）、騰落 ±200 家、漲停減跌停 ±9 家、量能放量（20 日量比 ≥1.2）時依漲跌判讀、外資台指與十大特定法人變化 ±1,000 口、外資選擇權淨金額 ±0.5 億、融資在指數下跌時增加偏空／指數上漲時減少偏多、小台散戶多空比較前幾日平均 ±10 個百分點（反向）、P/C 比較前 5 日平均 ±5 個百分點。
     中期門檻：指數在 20／60 日均線之上偏多、之下偏空；外資 20 日累計 ±1,000 億；借券賣出餘額 5 日 ±1%（增加偏空）；騰落線與指數 20 日同向時依騰落方向、背離時反向判讀；外資台指淨未平倉、散戶多空比（反向）、P/C 比、融資餘額（反向）、台指 VIX（反向：恐慌視為偏多）在近 60 日區間的前後 10% 才判讀。
     此為規則統計，不是預測，也不構成投資建議。</p></div>`;
 }
@@ -315,12 +317,19 @@ function loadScreens() {
 // 散戶多空比（坊間算法）：散戶＝全市場未平倉扣掉三大法人
 function renderRetail(r) {
   if (!r) return "";
+  const M = isMob();
+  const fn = '<p class="fn">坊間算法：散戶多單＝全市場未平倉－三大法人多單；散戶空單＝全市場未平倉－三大法人空單；散戶多空比＝（散戶多單－散戶空單）÷全市場未平倉×100%。全市場未平倉含所有月份與週契約；散戶當日交易淨口數＝三大法人空方交易口數－多方交易口數；括號為較前一交易日的變化（多空比為百分點）。「散戶」是三大法人以外的所有交易人，包含大戶與一般投資人。</p>';
   const rows = r.rows.map(x => `<tr><td class="name">${x.label}</td><td>${num(x.oi)}</td><td>${num(x.long)}</td><td>${num(x.short)}</td>
     <td>${vd(x.net, x.net_d)}</td><td>${x.ratio == null ? "-" : vd(x.ratio, x.ratio_d, 2).replace(/(\d)<\/span>/, "$1%</span>")}</td><td class="${cls(x.trade_net)}">${sg(x.trade_net)}</td></tr>`);
-  const tr = r.trend.slice().reverse().map(t => `<tr><td>${t.date}</td>${["TX", "MTX", "TMF"].map(c => `<td class="${cls(t[c])}">${t[c] == null ? "-" : sg(t[c], 2) + "%"}</td>`).join("")}</tr>`);
-  return ftable(`散戶多空比（${r.date}，口）`, ["契約", "全市場未平倉", "散戶多單", "散戶空單", "散戶淨部位", "散戶多空比", "散戶當日交易淨口數"], rows,
-      '<p class="fn">坊間算法：散戶多單＝全市場未平倉－三大法人多單；散戶空單＝全市場未平倉－三大法人空單；散戶多空比＝（散戶多單－散戶空單）÷全市場未平倉×100%。全市場未平倉含所有月份與週契約；散戶當日交易淨口數＝三大法人空方交易口數－多方交易口數；括號為較前一交易日的變化（多空比為百分點）。「散戶」是三大法人以外的所有交易人，包含大戶與一般投資人。</p>') +
-    (tr.length > 1 ? ftable("散戶多空比走勢", ["日期", "台指（TXF）", "小台（MXF）", "微台（TMF）"], tr) : "");
+  // 手機：每個契約一張卡片，多空比放大，其餘數字列在右邊
+  const dv = (v, d = 0) => v == null ? "" : ` <small class="${cls(v)}">(${sg(v, d)})</small>`;
+  const cards = r.rows.map(x => `<div class="rtc"><div class="rl"><h3>${x.label}</h3><p class="big ${cls(x.ratio)}">${x.ratio == null ? "-" : sg(x.ratio, 2) + "%"}</p><p class="mute">多空比${dv(x.ratio_d, 2)}</p></div>
+    <dl><dt>散戶多單</dt><dd>${num(x.long)}</dd><dt>散戶空單</dt><dd>${num(x.short)}</dd><dt>散戶淨部位</dt><dd><span class="${cls(x.net)}">${sg(x.net)}</span>${dv(x.net_d)}</dd>
+    <dt>當日交易淨口數</dt><dd class="${cls(x.trade_net)}">${sg(x.trade_net)}</dd><dt>全市場未平倉</dt><dd>${num(x.oi)}</dd></dl></div>`).join("");
+  const tr = r.trend.slice().reverse().map(t => `<tr><td>${M ? mdw(t.date) : t.date}</td>${["TX", "MTX", "TMF"].map(c => `<td class="${cls(t[c])}">${t[c] == null ? "-" : sg(t[c], 2) + "%"}</td>`).join("")}</tr>`);
+  return (M ? `<h2 class="sec">散戶多空比（${r.date}，口）</h2><div class="sc opt">${cards}</div>${fn}`
+      : ftable(`散戶多空比（${r.date}，口）`, ["契約", "全市場未平倉", "散戶多單", "散戶空單", "散戶淨部位", "散戶多空比", "散戶當日交易淨口數"], rows, fn)) +
+    (tr.length > 1 ? ftable("散戶多空比走勢", M ? ["日期", "台指", "小台", "微台"] : ["日期", "台指（TXF）", "小台（MXF）", "微台（TMF）"], tr, "", "m5") : "");
 }
 
 // ---- 營收 × 估值 × 股價落後（讀 data/value.json，第一次打開分頁才載入） ----
@@ -623,10 +632,10 @@ function renderPre() {
   const sess = p.night_from ? `${mdw(p.night_from)} 15:00 開盤～隔天 05:00` : "前一個交易日晚上";
   const nightNote = `<p class="${nd !== p.date ? "behind" : "mute"}">${nd !== p.date ? "今天不是這筆夜盤的交易日（休市或手動執行）。" : ""}這是 ${sess} 的夜盤，期交所記在 ${mdw(nd)} 交易日。</p>`;
   return `<h2 class="sec">盤前速覽（${p.date}・更新 ${p.updated_at.replace("T", " ").slice(0, 16)}）</h2><div class="sc opt">${stale}<div class="sr ev2">${cards.join("")}</div></div>` +
-    ftable(`期貨夜盤（近月，${md(nd)} 交易日）`, ["合約", "收盤", "漲跌", "漲跌幅", "最高", "最低", "成交量"], night,
-      nightNote + `<p class="fn">夜盤為前一個交易日 15:00～隔天 05:00；期交所把它記在下一個交易日（遇到休市會跳過，例如週五晚上的夜盤記在週一）。漲跌相對前一個交易日的結算價（不是日盤收盤價）。手機版不顯示最高、最低。</p>`, "ngt") +
+    `<div class="w2"><div>` + ftable(`期貨夜盤（近月，${md(nd)} 交易日）`, ["合約", "收盤", "漲跌", "漲跌幅", "最高", "最低", "成交量"], night,
+      nightNote + `<p class="fn">夜盤為前一個交易日 15:00～隔天 05:00；期交所把它記在下一個交易日（遇到休市會跳過，例如週五晚上的夜盤記在週一）。漲跌相對前一個交易日的結算價（不是日盤收盤價）。手機版不顯示最高、最低。</p>`, "ngt") + `</div><div>` +
     ftable("匯率（期交所每日外幣參考匯率）", ["", ...fxd.map(md), "較前日"], fx,
-      `<p class="fn">每日外幣參考匯率為前一個交易日的資料；美元／新台幣數字變大＝新台幣貶值。手機版只顯示最近 3 天。</p>`, "fxt") + worldHtml(p.world) + news;
+      `<p class="fn">每日外幣參考匯率為前一個交易日的資料；美元／新台幣數字變大＝新台幣貶值。手機版只顯示最近 3 天。</p>`, "fxt") + `</div></div>` + worldHtml(p.world) + news;
 }
 
 // ---- 國際市場（盤前速覽；Yahoo Finance／Nasdaq.com 非官方介面） ----
@@ -644,9 +653,9 @@ function worldHtml(w) {
       <p class="mute">${a.date ? md(a.date) + " 收盤" : esc(a.time || "")}・資料 ${a.src}</p></div>
     ${a.premium != null ? `<div><h3>ADR 溢價</h3><p class="big ${cls(a.premium)}">${sg(a.premium, 2)}%</p><p class="mute">ADR 換算台股 ${num(a.equiv, 1)} 元（× ${num(a.fx, 3)} ÷ 5，${a.fx_src}）vs 台股收盤 ${num(a.tw_close, 1)} 元</p></div>` : ""}</div>` : "";
   return `<h2 class="sec">國際市場（更新 ${w.updated_at.replace("T", " ").slice(5, 16)}）</h2><div class="sc opt">${adr}</div>
-    <div class="sc"><table class="ft wd">${head}<tbody>${grp(w.markets, "group")}</tbody></table></div>
-    <h2 class="sec">相關美股</h2><div class="sc"><table class="ft wd">${head}<tbody>${grp(w.stocks, "group")}</tbody></table>
-    <p class="fn">資料來源：Yahoo Finance（Nasdaq.com 備援，美股個股），皆為公開但非官方的網頁介面，可能延遲或暫時抓不到；抓不到的項目顯示「未取得」，不補任何數字。「盤中」表示抓取時該市場仍在交易，數字是最新成交價而不是收盤。期貨幾乎全天交易，是抓取時的最新價。日期為該市場當地的交易日。ADR 溢價＝台積電 ADR × 美元兌新台幣 ÷ 5（1 股 ADR＝5 股普通股）相對台股收盤的差距。OpenAI 尚未上市，沒有股價；微軟為其最大股東，甲骨文有大型算力合約。</p></div>`;
+    <div class="w2"><div><h2 class="sec">各國指數、期貨與商品</h2><div class="sc"><table class="ft wd">${head}<tbody>${grp(w.markets, "group")}</tbody></table></div></div>
+    <div><h2 class="sec">相關美股</h2><div class="sc"><table class="ft wd">${head}<tbody>${grp(w.stocks, "group")}</tbody></table></div></div></div>
+    <div class="sc"><p class="fn">資料來源：Yahoo Finance（Nasdaq.com 備援，美股個股），皆為公開但非官方的網頁介面，可能延遲或暫時抓不到；抓不到的項目顯示「未取得」，不補任何數字。「盤中」表示抓取時該市場仍在交易，數字是最新成交價而不是收盤。期貨幾乎全天交易，是抓取時的最新價。日期為該市場當地的交易日。ADR 溢價＝台積電 ADR × 美元兌新台幣 ÷ 5（1 股 ADR＝5 股普通股）相對台股收盤的差距。OpenAI 尚未上市，沒有股價；微軟為其最大股東，甲骨文有大型算力合約。</p></div>`;
 }
 
 // ---- 重大訊息（data/events.json） ----
@@ -926,26 +935,30 @@ function bindNew(box) {
 }
 
 function renderFut(f) {
-  const ix = f.index;
-  const mk = [`<tr class="idx"><td class="name">加權指數</td><td>${num(ix.close, 2)}</td><td class="${cls(ix.change)}">${sg(ix.change, 2)}</td><td class="${cls(ix.change)}">${sg(ix.pct, 2)}%</td><td>${num(ix.value_tril, 6)} 兆元</td><td>-</td><td>-</td></tr>`]
-    .concat(f.market.map(r => `<tr><td class="name">${r.name}</td><td>${num(r.close, r.close % 1 ? 1 : 0)}</td><td class="${cls(r.change)}">${sg(r.change, r.close % 1 ? 1 : 0)}</td><td class="${cls(r.change)}">${r.pct == null ? "-" : sg(r.pct, 2) + "%"}</td><td>${num(r.volume)}</td><td>${num(r.oi)}</td><td class="${cls(r.oi_chg)}">${sg(r.oi_chg)}</td></tr>`));
+  const ix = f.index, M = isMob(), dd = r => r.close % 1 ? 1 : 0;
+  // 手機：漲跌與漲跌幅、OI 與 OI 增減各疊成一格，五欄剛好放得下
+  const mk = M
+    ? [`<tr class="idx"><td class="name">加權指數</td><td>${num(ix.close, 2)}</td><td class="${cls(ix.change)}">${sg(ix.change, 2)}<span class="dv">${sg(ix.pct, 2)}%</span></td><td>${num(ix.value_tril * 10000, 0)} 億</td><td>-</td></tr>`]
+      .concat(f.market.map(r => `<tr><td class="name">${r.name}</td><td>${num(r.close, dd(r))}</td><td class="${cls(r.change)}">${sg(r.change, dd(r))}<span class="dv">${r.pct == null ? "-" : sg(r.pct, 2) + "%"}</span></td><td>${num(r.volume)}</td><td>${num(r.oi)}<span class="dv ${cls(r.oi_chg)}">(${sg(r.oi_chg)})</span></td></tr>`))
+    : [`<tr class="idx"><td class="name">加權指數</td><td>${num(ix.close, 2)}</td><td class="${cls(ix.change)}">${sg(ix.change, 2)}</td><td class="${cls(ix.change)}">${sg(ix.pct, 2)}%</td><td>${num(ix.value_tril, 6)} 兆元</td><td>-</td><td>-</td></tr>`]
+      .concat(f.market.map(r => `<tr><td class="name">${r.name}</td><td>${num(r.close, dd(r))}</td><td class="${cls(r.change)}">${sg(r.change, dd(r))}</td><td class="${cls(r.change)}">${r.pct == null ? "-" : sg(r.pct, 2) + "%"}</td><td>${num(r.volume)}</td><td>${num(r.oi)}</td><td class="${cls(r.oi_chg)}">${sg(r.oi_chg)}</td></tr>`));
+  const instK = M ? [["fut", 0], ["call", 0], ["put", 0]] : [["fut", 0], ["call", 0], ["put", 0], ["call_amt", 2], ["put_amt", 2]];
   const inst = f.inst.map(r => `<tr class="${r.name === "合計" ? "tot" : ""}"><td class="name">${r.name}</td><td class="${cls(r.cash)}">${sg(r.cash, 2)}</td>` +
-    [["fut", 0], ["call", 0], ["put", 0], ["call_amt", 2], ["put_amt", 2]].map(([k, d]) => `<td>${vd(r[k], r[k + "_d"], d)}</td>`).join("") + "</tr>");
+    instK.map(([k, d]) => `<td>${vd(r[k], r[k + "_d"], d)}</td>`).join("") + "</tr>");
   const large = f.large.map(r => `<tr><td class="name">${r.name}</td>` +
     ["sp_near", "sp_far", "ot_near", "ot_far"].map(k => `<td>${vd(r[k], r[k + "_d"])}</td>`).join("") +
-    `<td class="oi">${num(r.oi)}<span class="dv ${cls(r.oi_d)}">(${sg(r.oi_d)})</span></td></tr>`);
-  return ftable(`收盤行情表（${f.date}）`, ["合約", "收盤", "漲跌", "漲跌幅", "成交量", "OI", "OI增減"], mk,
-      '<p class="fn">收盤採期交所日最後結算價；成交量為一般＋盤後；OI增減為相較前一交易日。</p>') +
-    ftable("三大法人籌碼變化（口／億元）", ["", "現貨(金額)", "台指(口數)", "Call(口數)", "Put(口數)", "Call(金額)", "Put(金額)"], inst,
-      `<p class="fn">現貨為買賣超金額（億元）；其餘為淨未平倉，括號為較前一交易日${f.prev_date ? `（${f.prev_date}）` : ""}的變化；台指為臺股期貨（不含小台、微台）。</p>`) +
+    (M ? "" : `<td class="oi">${num(r.oi)}<span class="dv ${cls(r.oi_d)}">(${sg(r.oi_d)})</span></td>`) + "</tr>");
+  return ftable(`收盤行情表（${f.date}）`, M ? ["合約", "收盤", "漲跌", "成交量", "OI"] : ["合約", "收盤", "漲跌", "漲跌幅", "成交量", "OI", "OI增減"], mk,
+      `<p class="fn">收盤採期交所日最後結算價；成交量為一般＋盤後；OI增減為相較前一交易日${M ? "（括號）；加權指數的成交量欄為成交金額" : ""}。</p>`, "m5") +
+    ftable("三大法人籌碼變化（口／億元）", M ? ["", "現貨(億)", "台指(口)", "Call(口)", "Put(口)"] : ["", "現貨(金額)", "台指(口數)", "Call(口數)", "Put(口數)", "Call(金額)", "Put(金額)"], inst,
+      `<p class="fn">現貨為買賣超金額（億元）；其餘為淨未平倉，括號為較前一交易日${f.prev_date ? `（${f.prev_date}）` : ""}的變化；台指為臺股期貨（不含小台、微台）。${M ? "手機版不顯示選擇權的 Call／Put 金額。" : ""}</p>`, "m5") +
     renderRetail(f.retail) +
-    ftable("十大交易人期權淨部位（口）", ["", "十大(特定人) 近月", "十大(特定人) 其他月", "十大(非特定人) 近月", "十大(非特定人) 其他月", "全市場OI"], large,
-      '<p class="fn">淨部位＝十大買方部位－十大賣方部位；特定人＝特定法人，非特定人＝其餘交易人；近月為最近月份契約，其他月含週契約；括號為較前一交易日的變化。</p>');
+    ftable("十大交易人期權淨部位（口）", M ? ["", "特定人近月", "特定人其他", "非特定近月", "非特定其他"] : ["", "十大(特定人) 近月", "十大(特定人) 其他月", "十大(非特定人) 近月", "十大(非特定人) 其他月", "全市場OI"], large,
+      `<p class="fn">淨部位＝十大買方部位－十大賣方部位；特定人＝特定法人，非特定人＝其餘交易人；近月為最近月份契約，其他月含週契約；括號為較前一交易日的變化。${M ? "手機版不顯示全市場 OI。" : ""}</p>`, "m5");
 }
 
 const NEW_TABS = { pre: renderPre, news: renderNews, exr: renderExr, mgn: renderMgn, sbl: renderSbl, big: renderBig, trend: renderTrend };
 
-const isMob = () => matchMedia("(max-width:600px)").matches;
 const MOB_ROWS = 30, moreOpen = new Set();   // moreOpen：已按過「顯示全部」的分頁
 // 手機上很長的排行表先只顯示前 30 列，其餘按「顯示全部」才出現（展開的說明列跟著它的那一列）
 function clampTables(box) {
@@ -1087,6 +1100,14 @@ function spark(vals, kind = "line") {
   }
   return `<svg class="spk" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${g}</svg>`;
 }
+// 綜合判讀卡片：各面向 × 短線／中期 的小方格（紅＝偏多、綠＝偏空、灰＝中性、空白＝該期間不看這個面向）
+function dimGrid(t) {
+  const names = [...new Set([...t.mid.dims, ...t.short.dims].map(d => d.name))];
+  const order = ["現貨籌碼", "期權籌碼", "市場廣度", "情緒槓桿", "指數位置"];
+  names.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  const cell = (term, n) => { const d = term.dims.find(x => x.name === n); return d ? `<i class="${d.lean > 0 ? "u" : d.lean < 0 ? "d" : "n"}" title="${d.lean > 0 ? "偏多" : d.lean < 0 ? "偏空" : "中性"}"></i>` : "<i></i>"; };
+  return `<div class="dg"><span></span><span>短</span><span>中</span>${names.map(n => `<span>${n}</span>${cell(t.short, n)}${cell(t.mid, n)}`).join("")}</div>`;
+}
 function renderHome() {
   const d = data, mb = d.market_breadth, f = d.fut, s = d.signals;
   const tr = need("trend", ["home"]), ev = need("events", ["home", "pre", "news", "exr"]), pre = need("pre", ["home", "pre"]);
@@ -1099,13 +1120,13 @@ function renderHome() {
   // 1 綜合判讀
   if (s?.terms) {
     const t = s.terms;
-    cards.push(card("sig", "綜合判讀", `<p class="vd2"><span>短線</span><b class="${vcls(t.short.verdict)}">${t.short.verdict}</b></p><p class="vd2"><span>中期</span><b class="${vcls(t.mid.verdict)}">${t.mid.verdict}</b></p>`,
-      `短線 ${t.short.bull} 多 ${t.short.bear} 空・中期 ${t.mid.bull} 多 ${t.mid.bear} 空（以面向計）`));
+    cards.push(card("sig", "綜合判讀", `<p class="vd2"><span>短線</span><b class="${vcls(t.short.verdict)}">${t.short.verdict}</b></p><p class="vd2"><span>中期</span><b class="${vcls(t.mid.verdict)}">${t.mid.verdict}</b></p>` + dimGrid(t),
+      ""));
   } else cards.push(card("sig", "綜合判讀", big("-"), "綜合分析尚未產生"));
   // 2 加權指數、3 漲跌家數
   if (mb) {
     const x = mb.twse, pct = x.change / (x.index - x.change) * 100, ma = item("加權指數 vs 20 日均線", "mid");
-    cards.push(card("trend", "加權指數", big(num(x.index, 2)) + `<p class="${cls(x.change)}">${sg(x.change, 2)}（${sg(pct, 2)}%）</p>`,
+    cards.push(card("trend", "加權指數", big(num(x.index, 2)) + `<p class="chg ${cls(x.change)}">${sg(x.change, 2)}（${sg(pct, 2)}%）</p>`,
       `成交 ${num(x.value, 0)} 億${ma ? `・20 日均線${ma.bias > 0 ? "之上" : "之下"} ${ma.value}` : ""}`, spark(col("index"))));
     const t = mb.trend[mb.trend.length - 1];
     cards.push(card("mkt", "漲跌家數（上市＋上櫃）", `<p class="bd"><span class="up">上漲 ${num(t.up)}</span><span class="down">下跌 ${num(t.down)}</span></p>` +
@@ -1135,7 +1156,8 @@ function renderHome() {
   // 系列已依到期日排序且只留資料日之後到期的；到期日已過卻還沒新資料＝遇休市延後結算
   const o = f?.opt?.series?.[0], late = o && o.exp < twToday();
   if (o) cards.push(card("opt", late ? `最近結算 ${o.label}（延後至下一個交易日）` : `最近結算 ${o.label}`,
-    `<p class="bd"><span>壓力 <b>${o.resist[0] ? num(o.resist[0].strike) : "-"}</b></span><span>支撐 <b>${o.support[0] ? num(o.support[0].strike) : "-"}</b></span></p>`,
+    `<ul class="evl srl"><li><span>壓力</span><b>${o.resist[0] ? num(o.resist[0].strike) : "-"}</b></li>${o.resist.slice(1).map(x => `<li class="s2"><span></span><b>${num(x.strike)}</b></li>`).join("")}` +
+    `<li><span>支撐</span><b>${o.support[0] ? num(o.support[0].strike) : "-"}</b></li>${o.support.slice(1).map(x => `<li class="s2"><span></span><b>${num(x.strike)}</b></li>`).join("")}</ul>`,
     `加權 ${num(f.opt.ref, 0)}・此系列 P/C ${o.pc == null ? "-" : num(o.pc, 1) + "%"}`));
   // 10 外資買賣超前 3
   const top3 = (rs, t) => rs.slice(0, 3).map(r => `<li><span>${r.name}</span><b class="${cls(r.fi_today)}">${sg(r.fi_today)}</b></li>`).join("") || `<li class="mute">${t}</li>`;
@@ -1152,7 +1174,7 @@ function renderHome() {
   // 12 盤前夜盤
   if (pre && !pre.error && pre.date === twToday()) {
     const n = pre.night.find(x => x.code === "TX");
-    cards.push(card("pre", "盤前：台指期夜盤", big(num(n.close), cls(n.change)) + `<p class="${cls(n.change)}">${sg(n.change)}（${sg(n.pct, 2)}%）</p>`,
+    cards.push(card("pre", "盤前：台指期夜盤", big(num(n.close), cls(n.change)) + `<p class="chg ${cls(n.change)}">${sg(n.change)}（${sg(n.pct, 2)}%）</p>`,
       `更新 ${pre.updated_at.slice(11, 16)}・美元/台幣 ${num(pre.fx[0].values.at(-1), 3)}`));
   } else {
     cards.push(card("pre", "盤前：台指期夜盤", big("-"), pre && !pre.error ? `目前是 ${md(pre.date)} 的盤前資料；交易日早上 06:10 更新` : "交易日早上 06:10 更新"));
@@ -1173,7 +1195,9 @@ fetch("data/latest.json", { cache: "no-cache" })
     let meta = `股票資料日期 ${j.date}（${j.market}）・更新 ${hm(j.updated_at)}`;
     if (j.fut) meta += `　期貨資料日期 ${j.fut.date}${j.fut.updated_at ? `・更新 ${hm(j.fut.updated_at)}` : ""}`;
     const behind = j.fut && j.fut.date > j.date;
-    document.getElementById("meta").innerHTML = meta +
+    const last = [j.updated_at, j.fut?.updated_at].filter(Boolean).sort().at(-1);
+    const short = `股票 ${md(j.date)}${j.fut ? `・期貨 ${md(j.fut.date)}` : ""}・更新 ${md(last.slice(0, 10))} ${last.slice(11, 16)}`;
+    document.getElementById("meta").innerHTML = `<span class="mfull">${meta}</span><span class="mshort">${short}</span>` +
       (behind ? `<br><span class="behind">股票盤後資料尚未公布，目前顯示前一交易日（${j.date}）；期貨已更新至 ${j.fut.date}</span>` : "");
     go(location.hash.slice(1) || "home", false);
   })
