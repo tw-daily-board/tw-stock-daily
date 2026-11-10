@@ -279,7 +279,7 @@ details.nw{border-bottom:1px solid var(--line)}
 details.nw summary{cursor:pointer;padding:8px 0;line-height:1.6;list-style:none}
 details.nw summary::-webkit-details-marker{display:none}
 details.nw summary .sj{display:block}
-details.nw[open] summary{color:var(--accent)}
+details.nw[open]>summary{color:var(--accent)}
 .nwd{padding:0 0 10px 12px;border-left:3px solid var(--line);font-size:13px;line-height:1.7}
 .nwd p{margin:0 0 6px;word-break:break-word}
 .nwd a{color:var(--accent)}
@@ -376,3 +376,14 @@ table.wd td .fg{display:inline-block;margin-left:4px}
   table.fxt th:nth-child(2),table.fxt td:nth-child(2),table.fxt th:nth-child(3),table.fxt td:nth-child(3){display:none}
   table.ngt th,table.ngt td,table.fxt th,table.fxt td{padding:8px 7px}
 }
+
+/* 重大訊息：同公司同一天收成一組 */
+.fg.cnt{background:var(--accent);color:#fff;border-color:var(--accent)}
+details.nw.grp[open]>summary .sj{display:none}
+.nwg{margin:0 0 8px 6px;padding-left:10px;border-left:3px solid color-mix(in srgb,var(--accent) 40%,var(--line))}
+.nwg details.nw:last-child{border-bottom:0}
+details.nw.sub summary{padding:6px 0}
+/* 手機：長表格先顯示前 30 列 */
+tr.xr{display:none}
+button.more{display:block;width:calc(100% - 24px);margin:10px 12px;box-sizing:border-box;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--accent);font:inherit;font-weight:600;cursor:pointer}
+.sc.opt>button.more{width:100%;margin:10px 0}

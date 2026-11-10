@@ -563,6 +563,9 @@ const tsort = {};   // 各表格目前的排序 {k, dir}
 // cols：[鍵, 標題, 產生 <td> 的函式]；def：預設排序
 function stable(id, rows, cols, def, limit = 100) {
   const st = tsort[id] || def;
+  // 手機：把目前排序的那一欄移到名稱旁邊，不用往右滑就看得到
+  const ni = cols.findIndex(c => c[0] === "name"), si = cols.findIndex(c => c[0] === st.k);
+  if (isMob() && ni >= 0 && si > ni + 1) { cols = cols.slice(); cols.splice(ni + 1, 0, cols.splice(si, 1)[0]); }
   rows = rows.slice().sort((a, b) => (typeof a[st.k] === "string" ? a[st.k].localeCompare(b[st.k]) : (a[st.k] ?? -Infinity) - (b[st.k] ?? -Infinity)) * st.dir || a.code.localeCompare(b.code));
   const th = cols.map(([k, t]) => `<th data-ts="${id}" data-tk="${k}" class="${st.k === k ? (st.dir > 0 ? "asc" : "desc") : ""}">${t}</th>`).join("");
   const body = rows.slice(0, limit).map((r, i) => `<tr class="${r._cls || ""}">${cols.map(c => c[2](r, i)).join("")}</tr>`).join("");
@@ -611,19 +614,19 @@ function renderPre() {
   if (ev && !ev.error) {
     const since = e.stock_date, hot = hotCodes();
     const xs = ev.news.filter(x => x.d > since || (x.d === since && x.t >= "13:30:00"));
-    const li = xs.slice(0, 30).map(x => `<li><span class="mute2">${md(x.d)} ${x.t.slice(0, 5)}</span> ${stockLink(x.code, `<b>${esc(x.name)}</b>`)} ${hot.has(x.code) ? '<span class="fg bad">熱門</span>' : ""}<span class="fg">${x.cat}</span> ${esc(x.subject)}</li>`).join("");
-    news = `<h2 class="sec">${md(since)} 收盤後的重大訊息（${xs.length} 則）</h2><div class="sc opt"><ul class="nl">${li || '<li class="mute">沒有</li>'}</ul>
-      <p class="mute">${xs.length > 30 ? "只列最新 30 則・" : ""}<button class="lk" data-go="news">看全部重大訊息 ›</button></p></div>`;
+    const gs = newsGroups(xs);
+    const li = gs.slice(0, 30).map(g => { const x = g[0]; return `<li><span class="mute2">${md(x.d)} ${x.t.slice(0, 5)}</span> ${stockLink(x.code, `<b>${esc(x.name)}</b>`)} ${hot.has(x.code) ? '<span class="fg bad">熱門</span>' : ""}${g.length > 1 ? `<span class="fg cnt">${g.length} 則</span>` : ""}<span class="fg">${x.cat}</span> ${esc(x.subject)}${g.length > 1 ? `<span class="mute2">　…等 ${g.length} 則</span>` : ""}</li>`; }).join("");
+    news = `<h2 class="sec">${md(since)} 收盤後的重大訊息（${xs.length} 則、${gs.length} 家）</h2><div class="sc opt"><ul class="nl">${li || '<li class="mute">沒有</li>'}</ul>
+      <p class="mute">${gs.length > 30 ? "只列最新 30 家・" : ""}同公司的訊息合併成一列・<button class="lk" data-go="news">看全部重大訊息 ›</button></p></div>`;
   }
   const nd = p.night_date || p.date;
   const sess = p.night_from ? `${mdw(p.night_from)} 15:00 開盤～隔天 05:00` : "前一個交易日晚上";
   const nightNote = `<p class="${nd !== p.date ? "behind" : "mute"}">${nd !== p.date ? "今天不是這筆夜盤的交易日（休市或手動執行）。" : ""}這是 ${sess} 的夜盤，期交所記在 ${mdw(nd)} 交易日。</p>`;
   return `<h2 class="sec">盤前速覽（${p.date}・更新 ${p.updated_at.replace("T", " ").slice(0, 16)}）</h2><div class="sc opt">${stale}<div class="sr ev2">${cards.join("")}</div></div>` +
-    worldHtml(p.world) +
     ftable(`期貨夜盤（近月，${md(nd)} 交易日）`, ["合約", "收盤", "漲跌", "漲跌幅", "最高", "最低", "成交量"], night,
       nightNote + `<p class="fn">夜盤為前一個交易日 15:00～隔天 05:00；期交所把它記在下一個交易日（遇到休市會跳過，例如週五晚上的夜盤記在週一）。漲跌相對前一個交易日的結算價（不是日盤收盤價）。手機版不顯示最高、最低。</p>`, "ngt") +
     ftable("匯率（期交所每日外幣參考匯率）", ["", ...fxd.map(md), "較前日"], fx,
-      `<p class="fn">每日外幣參考匯率為前一個交易日的資料；美元／新台幣數字變大＝新台幣貶值。手機版只顯示最近 3 天。</p>`, "fxt") + news;
+      `<p class="fn">每日外幣參考匯率為前一個交易日的資料；美元／新台幣數字變大＝新台幣貶值。手機版只顯示最近 3 天。</p>`, "fxt") + worldHtml(p.world) + news;
 }
 
 // ---- 國際市場（盤前速覽；Yahoo Finance／Nasdaq.com 非官方介面） ----
@@ -647,24 +650,41 @@ function worldHtml(w) {
 }
 
 // ---- 重大訊息（data/events.json） ----
-const newsState = { d: "", cat: "", hot: false };
+const NEWS_PAGE = 50;
+const newsState = { d: null, cat: "", hot: false, n: NEWS_PAGE };   // d：null＝預設（最近一天）、""＝全部日期
+// 同一家公司同一天的訊息排在一起（依各組最新一則的時間排序）
+function newsGroups(xs) {
+  const m = new Map();
+  xs.forEach(x => { const k = x.d + x.code; (m.get(k) || m.set(k, []).get(k)).push(x); });
+  return [...m.values()];
+}
 function renderNews() {
   const ev = need("events", ["pre", "news", "exr"]);
   if (!ev) return '<div class="empty">載入中…</div>';
   if (ev.error) return '<div class="empty">重大訊息資料尚未產生，之後排程會自動補上。</div>';
   const s = newsState, hot = hotCodes();
+  if (s.d == null) s.d = ev.news_dates[0] || "";
   const base = ev.news.filter(x => (!s.d || x.d === s.d) && (!s.hot || hot.has(x.code)));
   const xs = base.filter(x => !s.cat || x.cat === s.cat);
   const cnt = c => base.filter(x => x.cat === c).length;
-  const items = xs.slice(0, 200).map(x => `<details class="nw"><summary><span class="mute2">${md(x.d)} ${x.t.slice(0, 5)}</span> ${stockLink(x.code, `<b>${esc(x.code)} ${esc(x.name)}</b>`)}<span class="mute2"> ${x.market}</span>
-    ${hot.has(x.code) ? '<span class="fg bad">熱門</span>' : ""}<span class="fg">${x.cat}</span><span class="sj">${esc(x.subject)}</span></summary>
-    <div class="nwd"><p>${esc(x.desc).replace(/\n/g, "<br>")}</p><p class="mute">${x.rule ? `符合條款：${esc(x.rule)}・` : ""}原文：<a href="https://mops.twse.com.tw/mops/#/web/t05sr01_1" target="_blank" rel="noopener noreferrer">公開資訊觀測站</a></p></div></details>`).join("");
-  return `<h2 class="sec">重大訊息（近 ${ev.news_days} 天，共 ${ev.news.length} 則）</h2><div class="sc opt">
+  const one = (x, sub) => `<details class="nw${sub ? " sub" : ""}"><summary><span class="mute2">${sub ? "" : md(x.d) + " "}${x.t.slice(0, 5)}</span> ${sub ? "" : `${stockLink(x.code, `<b>${esc(x.code)} ${esc(x.name)}</b>`)}<span class="mute2"> ${x.market}</span>
+    ${hot.has(x.code) ? '<span class="fg bad">熱門</span>' : ""}`}<span class="fg">${x.cat}</span><span class="sj">${esc(x.subject)}</span></summary>
+    <div class="nwd"><p>${esc(x.desc).replace(/\n/g, "<br>")}</p><p class="mute">${x.rule ? `符合條款：${esc(x.rule)}・` : ""}原文：<a href="https://mops.twse.com.tw/mops/#/web/t05sr01_1" target="_blank" rel="noopener noreferrer">公開資訊觀測站</a></p></div></details>`;
+  const groups = newsGroups(xs);
+  const items = groups.slice(0, s.n).map(g => {
+    if (g.length === 1) return one(g[0]);
+    const x = g[0], cats = [...new Set(g.map(y => y.cat))];
+    return `<details class="nw grp"><summary><span class="mute2">${md(x.d)} ${x.t.slice(0, 5)}</span> ${stockLink(x.code, `<b>${esc(x.code)} ${esc(x.name)}</b>`)}<span class="mute2"> ${x.market}</span>
+      ${hot.has(x.code) ? '<span class="fg bad">熱門</span>' : ""}<span class="fg cnt">${g.length} 則</span>${cats.map(c => `<span class="fg">${c}</span>`).join("")}<span class="sj">${esc(x.subject)}<span class="mute2">　…等 ${g.length} 則，點開看全部</span></span></summary>
+      <div class="nwg">${g.map(y => one(y, true)).join("")}</div></details>`;
+  }).join("");
+  return `<h2 class="sec">重大訊息（近 ${ev.news_days} 天，共 ${ev.news.length} 則；目前 ${xs.length} 則、${groups.length} 家次）</h2><div class="sc opt">
     <nav class="optnav">${btn("data-nd", "", "全部日期", !s.d)}${ev.news_dates.map(d => btn("data-nd", d, mdw(d), s.d === d)).join("")}</nav>
     <nav class="optnav">${btn("data-nc", "", `全部（${base.length}）`, !s.cat)}${ev.categories.map(c => btn("data-nc", c, `${c}（${cnt(c)}）`, s.cat === c, !cnt(c))).join("")}
       ${btn("data-nh", 1, "只看熱門股", s.hot)}</nav>
     <div class="nws">${items || '<p class="mute">沒有符合的訊息</p>'}</div>
-    <p class="fn">${xs.length > 200 ? "只列最新 200 則；" : ""}點一則看說明。資料來源：證交所、櫃買中心 OpenAPI 的「上市／上櫃公司每日重大訊息」（公司自行申報的公告原文，不是新聞報導）。分類依主旨關鍵字自動判斷，可能不精準。「熱門」＝出現在本站權值股、熱門個股／ETF、外資買賣超前 20 名。OpenAPI 只提供最近一天，本站從 2026-10-24 起每天累積。</p></div>`;
+    ${groups.length > s.n ? `<button class="more" data-nmore="1">再顯示 ${Math.min(NEWS_PAGE, groups.length - s.n)} 組（還有 ${groups.length - s.n} 組）</button>` : ""}
+    <p class="fn">同一家公司同一天的訊息收成一組（標示則數），點開看每一則；點一則看說明。預設顯示最近一天，可改選其他日期或全部日期。資料來源：證交所、櫃買中心 OpenAPI 的「上市／上櫃公司每日重大訊息」（公司自行申報的公告原文，不是新聞報導）。分類依主旨關鍵字自動判斷，可能不精準。「熱門」＝出現在本站權值股、熱門個股／ETF、外資買賣超前 20 名。OpenAPI 只提供最近一天，本站從 2026-10-24 起每天累積。</p></div>`;
 }
 
 // ---- 除權息（data/events.json） ----
@@ -888,9 +908,10 @@ window.addEventListener("resize", () => { clearTimeout(trResize); trResize = set
 
 function bindNew(box) {
   const set = (sel, fn) => box.querySelectorAll(sel).forEach(b => b.onclick = () => { fn(b); render(); });
-  set("[data-nd]", b => { newsState.d = b.dataset.nd; });
-  set("[data-nc]", b => { newsState.cat = b.dataset.nc; });
-  set("[data-nh]", () => { newsState.hot = !newsState.hot; });
+  set("[data-nd]", b => { newsState.d = b.dataset.nd; newsState.n = NEWS_PAGE; });
+  set("[data-nc]", b => { newsState.cat = b.dataset.nc; newsState.n = NEWS_PAGE; });
+  set("[data-nh]", () => { newsState.hot = !newsState.hot; newsState.n = NEWS_PAGE; });
+  box.querySelectorAll("[data-nmore]").forEach(b => b.onclick = () => { const y = scrollY; newsState.n += NEWS_PAGE; render(); scrollTo(0, y); });
   set("[data-xk]", b => { exrState.kind = b.dataset.xk; });
   set("[data-bm]", b => { sblState.mode = b.dataset.bm; delete tsort.sbl; });
   set("[data-mm]", b => { mgnState.mode = b.dataset.mm; delete tsort.mgn; });
@@ -924,7 +945,27 @@ function renderFut(f) {
 
 const NEW_TABS = { pre: renderPre, news: renderNews, exr: renderExr, mgn: renderMgn, sbl: renderSbl, big: renderBig, trend: renderTrend };
 
+const isMob = () => matchMedia("(max-width:600px)").matches;
+const MOB_ROWS = 30, moreOpen = new Set();   // moreOpen：已按過「顯示全部」的分頁
+// 手機上很長的排行表先只顯示前 30 列，其餘按「顯示全部」才出現（展開的說明列跟著它的那一列）
+function clampTables(box) {
+  if (!isMob() || moreOpen.has(tab)) return;
+  box.querySelectorAll("table.scr").forEach(t => {
+    const rows = [...t.tBodies[0].rows], main = rows.filter(r => !r.classList.contains("vd"));
+    if (main.length <= MOB_ROWS + 5) return;
+    let n = 0;
+    rows.forEach(r => { if (!r.classList.contains("vd")) n++; if (n > MOB_ROWS) r.classList.add("xr"); });
+    const b = document.createElement("button");
+    b.className = "more"; b.textContent = `顯示全部 ${main.length} 列（目前前 ${MOB_ROWS} 列）`;
+    b.onclick = () => { moreOpen.add(tab); t.querySelectorAll("tr.xr").forEach(r => r.classList.remove("xr")); b.remove(); };
+    t.after(b);
+  });
+}
 function render() {
+  renderTab();
+  clampTables(document.querySelector(".scroll"));
+}
+function renderTab() {
   const box = document.querySelector(".scroll");
   const cs = cols();
   document.getElementById("note").hidden = !(["cap", "stocks", "etfs"].includes(tab) || isFi(tab));
