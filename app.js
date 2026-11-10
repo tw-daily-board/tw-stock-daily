@@ -313,7 +313,7 @@ function loadScreens() {
     .then(r => { if (!r.ok) throw 0; return r.json(); })
     .then(j => { scr = j; })
     .catch(() => { scr = { error: "籌碼篩選資料尚未產生，之後排程會自動補上。" }; })
-    .finally(() => { if (tab === "scr") render(); });
+    .finally(() => { if (tab === "scr" || tab === "ss") render(); });
 }
 
 // 散戶多空比（坊間算法）：散戶＝全市場未平倉扣掉三大法人
@@ -346,7 +346,7 @@ function loadValue() {
     .then(r => { if (!r.ok) throw 0; return r.json(); })
     .then(j => { val = j; })
     .catch(() => { val = { error: "營收估值資料尚未產生，之後排程會自動補上。" }; })
-    .finally(() => { if (tab === "val") render(); });
+    .finally(() => { if (tab === "val" || tab === "ss") render(); });
 }
 
 function renderValue() {
@@ -426,7 +426,7 @@ function loadDaytrade() {
     .then(r => { if (!r.ok) throw 0; return r.json(); })
     .then(j => { dtd = j; })
     .catch(() => { dtd = { error: "當沖觀察資料尚未產生，之後排程會自動補上。" }; })
-    .finally(() => { if (tab === "dt") render(); });
+    .finally(() => { if (tab === "dt" || tab === "ss") render(); });
 }
 
 function renderDaytrade() {
@@ -490,7 +490,7 @@ function loadLongterm() {
     .then(r => { if (!r.ok) throw 0; return r.json(); })
     .then(j => { ltd = j; })
     .catch(() => { ltd = { error: "長期體質資料尚未產生，之後排程會自動補上。" }; })
-    .finally(() => { if (tab === "lt") render(); });
+    .finally(() => { if (tab === "lt" || tab === "ss") render(); });
 }
 
 function renderLongterm() {
@@ -959,6 +959,210 @@ function renderFut(f) {
       `<p class="fn">淨部位＝十大買方部位－十大賣方部位；特定人＝特定法人，非特定人＝其餘交易人；近月為最近月份契約，其他月含週契約；括號為較前一交易日的變化。${M ? "手機版不顯示全市場 OI。" : ""}</p>`, "m5");
 }
 
+// ---- 個股查詢：輸入代號或名稱，把這檔股票在網站各處的資料集中在一頁 ----
+// data/stock.json：每檔 60 日收盤價、10 日三大法人；其餘直接讀各分頁已有的資料檔（打開這頁才載入）
+const ssState = { code: null };
+const SS_RECENT = "ssRecent";
+const ssRecent = () => { try { return JSON.parse(localStorage.getItem(SS_RECENT)) || []; } catch (e) { return []; } };
+function ssRemember(code) {
+  try { localStorage.setItem(SS_RECENT, JSON.stringify([code, ...ssRecent().filter(c => c !== code)].slice(0, 8))); } catch (e) { /* 略過 */ }
+}
+// 代號完全相同 → 代號開頭相同 → 名稱開頭相同 → 名稱包含
+function ssMatch(st, q) {
+  q = q.trim().toUpperCase();
+  if (!q) return [];
+  const out = [];
+  for (const [c, r] of Object.entries(st.rows)) {
+    const n = r[0].toUpperCase();
+    const s = c === q ? 0 : c.startsWith(q) ? 1 : n.startsWith(q) ? 2 : n.includes(q) ? 3 : -1;
+    if (s >= 0) out.push([s, r[2], c.length, c]);
+  }
+  return out.sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2] || a[3].localeCompare(b[3])).slice(0, 8).map(x => x[3]);
+}
+function ssPick(code) {
+  ssState.code = code;
+  ssRemember(code);
+  history.replaceState(null, "", "#ss/" + code);
+  const box = document.querySelector(".scroll");
+  box.innerHTML = "";        // 整頁重畫（含輸入框），換一檔時回到頂端
+  render();
+  window.scrollTo({ top: 0 });
+}
+// 60 日收盤價折線（含 20 日均線）；hover／點擊標示當天
+function ssChart(dates, closes) {
+  const pts = closes.map((v, i) => [i, v]).filter(p => p[1] != null);
+  if (pts.length < 2) return '<p class="mute">歷史股價不足</p>';
+  const ma = closes.map((_, i) => { const w = closes.slice(Math.max(0, i - 19), i + 1).filter(v => v != null); return i >= 19 && w.length === 20 ? w.reduce((a, b) => a + b, 0) / 20 : null; });
+  const all = [...pts.map(p => p[1]), ...ma.filter(v => v != null)];
+  let lo = Math.min(...all), hi = Math.max(...all); const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
+  const W = 600, H = 150, x = i => i / (closes.length - 1) * W, y = v => H - (v - lo) / (hi - lo) * H;
+  const path = arr => { let d = "", pen = false; arr.forEach((v, i) => { if (v == null) { pen = false; return; } d += `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`; pen = true; }); return d; };
+  const hiV = Math.max(...pts.map(p => p[1])), loV = Math.min(...pts.map(p => p[1]));
+  return `<div class="ssc" data-dates='${JSON.stringify(dates)}' data-closes='${JSON.stringify(closes)}' data-ma='${JSON.stringify(ma.map(v => v == null ? null : +v.toFixed(2)))}'>
+    <p class="ssh mute"><span class="ssd">${md(dates.at(-1))}</span>　收盤 <b class="ssv">${num(closes.at(-1), 2)}</b>　<span class="ssm">20 日均線 ${ma.at(-1) == null ? "-" : num(ma.at(-1), 2)}</span></p>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="近 60 日收盤價"><path class="ma" d="${path(ma)}"/><path class="px" d="${path(closes)}"/><line class="cur" x1="${W}" x2="${W}" y1="0" y2="${H}"/></svg>
+    <p class="ssx mute"><span>${md(dates[0])}</span><span>最高 ${num(hiV, 2)}・最低 ${num(loV, 2)}</span><span>${md(dates.at(-1))}</span></p>
+    <p class="lg2 mute"><i class="px"></i>收盤價 <i class="ma"></i>20 日均線</p></div>`;
+}
+function bindSSChart(box) {
+  const c = box.querySelector(".ssc"); if (!c) return;
+  const dates = JSON.parse(c.dataset.dates), cl = JSON.parse(c.dataset.closes), ma = JSON.parse(c.dataset.ma), svg = c.querySelector("svg"), ln = c.querySelector("line.cur");
+  const show = e => {
+    const r = svg.getBoundingClientRect(), px = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    const i = Math.max(0, Math.min(dates.length - 1, Math.round(px / r.width * (dates.length - 1))));
+    const X = (i / (dates.length - 1) * 600).toFixed(1); ln.setAttribute("x1", X); ln.setAttribute("x2", X);
+    c.querySelector(".ssd").textContent = mdw(dates[i]); c.querySelector(".ssv").textContent = cl[i] == null ? "-" : num(cl[i], 2);
+    c.querySelector(".ssm").textContent = `20 日均線 ${ma[i] == null ? "-" : num(ma[i], 2)}`;
+  };
+  svg.onmousemove = show; svg.onclick = show; svg.ontouchstart = show; svg.ontouchmove = show;
+}
+const ssKV = items => `<dl class="kv">${items.filter(Boolean).map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`;
+const ssSec = (title, to, body, note = "") => `<section class="sss"><h3>${title}${to ? `<button class="lk" data-go="${to}">看排行 ›</button>` : ""}</h3>${body}${note ? `<p class="fn">${note}</p>` : ""}</section>`;
+const ssWait = '<p class="mute">載入中…</p>';
+const pctS = (v, d = 2) => v == null ? "-" : `<span class="${cls(v)}">${sg(v, d)}%</span>`;
+const lotS = v => v == null ? "-" : `<span class="${cls(v)}">${sg(v)}</span>`;
+const ok = b => b ? '<span class="ck y">✓</span>' : '<span class="ck n">✗</span>';
+
+function ssResult(code) {
+  const st = store.stock, r = st.rows[code];
+  if (!r) return `<div class="empty">找不到代號 ${esc(code)}（只收上市、上櫃的普通股與 ETF）。</div>`;
+  const [name, market, etf, closes, fi, it, dl] = r;
+  const mg = need("margin", ["ss"]), sb = need("sbl", ["ss"]), hd = need("holders", ["ss"]), ev = need("events", ["ss"]);
+  loadScreens(); loadValue(); loadLongterm(); loadDaytrade();
+  const find = (j, k = "rows") => j && !j.error ? (j[k] || []).find(x => x.code === code) : undefined;
+  const m = find(mg), s = find(sb), h = find(hd), v = val && !val.error ? val.rows.find(x => x.code === code) : undefined;
+  const lt = ltd && !ltd.error ? ltd.rows.find(x => x.code === code) : undefined, dt = dtd && !dtd.error ? dtd.rows.find(x => x.code === code) : undefined;
+  const last = closes.at(-1), prev = closes.at(-2), chg = last != null && prev != null ? last - prev : null;
+  const base = m || s || dt;   // 這幾個檔案有當天漲跌幅與成交量
+  const p60 = closes[0] != null && last != null ? (last / closes[0] - 1) * 100 : null;
+
+  // 出現在哪裡
+  const tags = [];
+  const tag = (to, t, c = "") => tags.push(`<button class="ssg ${c}" data-go="${to}">${t}</button>`);
+  const rank = (k, t, to) => { const i = (data[k] || []).findIndex(x => x.code === code); if (i >= 0) tag(to, `${t} 第 ${i + 1} 名`); };
+  rank("cap", "權值股", "cap"); rank("stocks", "熱門個股", "stocks"); rank("etfs", "熱門 ETF", "etfs");
+  rank("fi_buy", "外資買超", "fi"); rank("fi_sell", "外資賣超", "fi"); rank("fi_etf_buy", "ETF 外資買超", "fi_etf"); rank("fi_etf_sell", "ETF 外資賣超", "fi_etf");
+  if (scr && !scr.error) {
+    for (const [c, cn] of Object.entries(scr.cats)) {
+      const x = scr.streaks[c]?.find(y => y.code === code);
+      if (x) tag("scr", `${cn}連${x.days > 0 ? "買" : "賣"} ${Math.abs(x.days)} 天${Math.abs(x.days) >= scr.inst_dates.length ? "以上" : ""}`, x.days > 0 ? "up" : "down");
+      const y = scr.diverge?.[c]?.find(z => z.code === code);
+      if (y) tag("scr", `${cn}${y.cum > 0 ? "買超但股價沒漲" : "賣超但股價沒跌"}`);
+      if (scr.flip_hot?.[c]?.some(z => z.code === code)) tag("scr", `${cn}隔日沖熱區`);
+      if (scr.flips?.[c]?.[scr.date]?.some(z => z.code === code)) tag("scr", `${cn}今日隔日沖`);
+    }
+  }
+  // 營收估值、長期體質：符合該分頁「預設條件」（打開分頁時就會列出）才算出現
+  if (v && ["c_rev", "c_val", "c_lag", "c_inst"].every(k => v[k])) tag("val", "營收估值名單");
+  if (lt && ["c_roe", "c_eps", "c_div", "c_expect"].every(k => lt[k]) && !lt.ai) tag("lt", "長期體質名單");
+  if (dt?.flags.length) dt.flags.forEach(f => tag("dt", `當沖：${f}`, DT_BAD.includes(f) ? "down" : ""));
+  const news = ev && !ev.error ? ev.news.filter(x => x.code === code) : [];
+  const exr = ev && !ev.error ? ev.exright.filter(x => x.code === code) : [];
+  if (news.length) tag("news", `重大訊息 ${news.length} 則`);
+  exr.forEach(x => tag("exr", `${md(x.d)} ${x.kind}`));
+  const loadingAny = [mg, sb, hd, ev].some(x => !x) || !scr || !val || !ltd || !dtd;
+
+  // 三大法人 10 日
+  const idates = st.inst_dates;
+  const streak = arr => { let n = 0, sum = 0; for (let i = arr.length - 1; i >= 0; i--) { const x = arr[i]; if (!x || (n && Math.sign(x) !== Math.sign(sum))) break; n++; sum += x; } return { n, sum }; };
+  const tot = arr => arr.reduce((a, b) => a + (b || 0), 0);
+  const instRow = (t, arr) => { const k = streak(arr); return `<tr><td class="name">${t}</td><td>${lotS(arr.at(-1))}</td><td>${k.n ? `<span class="${cls(k.sum)}">連${k.sum > 0 ? "買" : "賣"} ${k.n} 天${k.n >= arr.length ? "+" : ""}</span><span class="dv ${cls(k.sum)}">${sg(k.sum)}</span>` : "-"}</td><td>${lotS(tot(arr))}</td></tr>`; };
+  const sum3 = idates.map((_, i) => (fi[i] ?? 0) + (it[i] ?? 0) + (dl[i] ?? 0));
+  const maxAbs = Math.max(1, ...fi.map(x => Math.abs(x || 0)));
+  const daily = idates.map((d, i) => `<tr><td>${mdw(d)}</td><td class="bar2"><i class="${(fi[i] || 0) >= 0 ? "u" : "d"}" style="--w:${(Math.abs(fi[i] || 0) / maxAbs).toFixed(3)}"></i>${lotS(fi[i])}</td><td>${lotS(it[i])}</td><td>${lotS(dl[i])}</td><td>${lotS(sum3[i])}</td></tr>`).reverse().join("");
+  const instHtml = `<table class="ft m5 sst"><thead><tr><th></th><th>${md(idates.at(-1))}</th><th>連續</th><th>10 日累計</th></tr></thead><tbody>${instRow("外資", fi)}${instRow("投信", it)}${instRow("自營商", dl)}${instRow("合計", sum3)}</tbody></table>
+    <details class="tv2"><summary>每日明細（張）</summary><table class="ft m5 sst"><thead><tr><th>日期</th><th>外資</th><th>投信</th><th>自營商</th><th>合計</th></tr></thead><tbody>${daily}</tbody></table></details>`;
+
+  const sections = [
+    ssSec("三大法人買賣超（張）", etf ? "fi_etf" : "fi", instHtml, "外資含外資自營商；自營商含自行買賣與避險。連續＝從最近一天往前，同方向（買或賣）連續幾天、合計多少張；只有 10 天資料，「10 天+」表示至少 10 天。"),
+    ssSec(`融資融券（${mg && !mg.error ? mg.date : "-"}，張）`, "mgn", !mg ? ssWait : m ? ssKV([
+      ["融資餘額", num(m.fin)], ["融資增減", lotS(m.fin_d1)], ["融資 5 日", lotS(m.fin_d5)], ["融資使用率", m.fin_use == null ? "-" : num(m.fin_use, 2) + "%"],
+      ["融券餘額", num(m.short)], ["融券增減", lotS(m.short_d1)], ["融券 5 日", lotS(m.short_d5)], ["券資比", m.ratio == null ? "-" : num(m.ratio, 2) + "%"],
+      m.offset != null && ["資券互抵", num(m.offset)]]) : '<p class="mute">這檔沒有融資融券資料（可能不是信用交易標的）。</p>'),
+    ssSec(`借券賣出（${sb && !sb.error ? sb.date : "-"}，張）`, "sbl", !sb ? ssWait : s ? ssKV([
+      ["借券賣出", num(s.sell)], ["還券", num(s.ret)], ["借券賣出餘額", num(s.bal)], ["當日增減", lotS(s.d1)], ["5 日增減", lotS(s.d5)],
+      ["占成交量", s.sell_ratio == null ? "-" : num(s.sell_ratio, 1) + "%"]]) : '<p class="mute">這檔沒有借券賣出資料。</p>'),
+    ssSec(`大戶持股（集保 ${hd && !hd.error ? hd.date : "-"}）`, "big", !hd ? ssWait : h ? ssKV([
+      ["千張大戶", num(h.r1000, 2) + "%"], ["週增減", h.d1000 == null ? "-" : `<span class="${cls(h.d1000)}">${sg(h.d1000, 2)}</span> 個百分點`],
+      ["4 週增減", h.d1000_4w == null ? "-" : `<span class="${cls(h.d1000_4w)}">${sg(h.d1000_4w, 2)}</span> 個百分點`], ["千張大戶人數", num(h.p1000)],
+      ["400 張以上", num(h.r400, 2) + "%"], ["股東人數", num(h.people)], ["人數週增減", pctS(h.dpeople)]]) : '<p class="mute">這檔沒有集保股權分散資料。</p>'),
+  ];
+  if (!etf) {
+    const R = val && !val.error ? val.rules : null;
+    sections.push(ssSec(`營收估值（營收 ${val && !val.error ? val.rev_month.slice(0, 4) + "/" + val.rev_month.slice(4) : "-"}）`, "val", !val ? ssWait : v ? ssKV([
+      ["產業", esc(v.industry)], ["月營收", num(v.rev, 2) + " 億"], ["年增", pctS(v.yoy)], ["月增", pctS(v.mom)], ["累計年增", pctS(v.cum_yoy)],
+      ["本益比", v.per == null ? "-" : num(v.per, 2)], ["同業本益比", v.ind_per == null ? "-" : num(v.ind_per, 2)], ["股價淨值比", v.pb == null ? "-" : num(v.pb, 2)],
+      ["殖利率", v.dy == null ? "-" : num(v.dy, 2) + "%"], ["近 60 日", pctS(v.ret60)], ["相對大盤", pctS(v.rel60)], [`法人 ${R?.inst_days ?? 10} 日`, lotS(v.inst10) + " 張"],
+    ]) + `<p class="cks">${VAL_CONDS.filter(([k]) => v[k] != null).map(([k, t]) => `${ok(v[k])}${t}`).join(" ")}</p>` +
+      (v.note ? `<p class="mute">營收說明：${esc(v.note)}</p>` : "") : '<p class="mute">這檔沒有營收或估值資料。</p>'));
+    const ym = x => `${x.slice(0, 4)}/${x.slice(4)}`;
+    sections.push(ssSec("長期體質（近 5 年）", "lt", !ltd ? ssWait : lt ? ssKV([
+      ["目前 ROE", lt.roe_now == null ? "-" : num(lt.roe_now, 2) + "%"], ["5 年最低 ROE", lt.roe_min == null ? "-" : num(lt.roe_min, 2) + "%"],
+      ["EPS 年化成長", pctS(lt.eps_cagr)], ["預估報酬", pctS(lt.expect)], ["本益比", lt.per == null ? "-" : num(lt.per, 2)], ["5 年本益比中位數", lt.per_med5 == null ? "-" : num(lt.per_med5, 2)],
+    ]) + `<p class="cks">${LT_CONDS.map(([k, t]) => `${ok(lt[k])}${t}`).join(" ")}</p>` +
+      `<div class="sc"><table class="ft m5 sst"><thead><tr><th>時點</th>${lt.years.map((y, i) => `<th>${i ? ym(y.ym) : "目前"}</th>`).join("")}</tr></thead><tbody>
+      <tr><td>近四季 EPS</td>${lt.years.map(y => `<td>${y.eps == null ? "虧損/無" : num(y.eps, 2)}</td>`).join("")}</tr>
+      <tr><td>現金股利</td>${lt.years.map(y => `<td>${y.dps == null ? "-" : num(y.dps, 2)}</td>`).join("")}</tr>
+      <tr><td>ROE</td>${lt.years.map(y => `<td>${y.roe == null ? "-" : num(y.roe, 1) + "%"}</td>`).join("")}</tr></tbody></table></div>` : '<p class="mute">這檔沒有足夠的 5 年估值資料。</p>',
+      lt ? "由每月本益比、殖利率、淨值比反推的近似值，不是財報原始數字。" : ""));
+  }
+  sections.push(ssSec(`當沖觀察（${dtd && !dtd.error ? dtd.date : "-"}）`, "dt", !dtd ? ssWait : dt ? ssKV([
+    ["當沖張數", num(dt.dt)], ["當沖比率", dt.dt_ratio == null ? "-" : num(dt.dt_ratio, 1) + "%"], ["振幅", dt.amp == null ? "-" : num(dt.amp, 2) + "%"], ["量比（20 日）", dt.vol_ratio == null ? "-" : num(dt.vol_ratio, 2) + " 倍"],
+  ]) + (dt.flags.length ? `<p>${dt.flags.map(f => `<span class="fg ${DT_BAD.includes(f) ? "bad" : f === "暫停先賣後買" ? "warn" : ""}">${f}</span>`).join("")}</p><p class="mute">${dt.flag_text.map(esc).join("<br>")}</p>` : "")
+    : `<p class="mute">不在當沖觀察名單（只列成交量 ${dtd.error ? "-" : num(dtd.rules.min_vol)} 張以上，或有注意、處置等標記的股票）。</p>`));
+  const nl = news.slice(0, 20).map(x => `<details class="nw"><summary><span class="mute2">${md(x.d)} ${x.t.slice(0, 5)}</span> <span class="fg">${x.cat}</span><span class="sj">${esc(x.subject)}</span></summary>
+    <div class="nwd"><p>${esc(x.desc).replace(/\n/g, "<br>")}</p><p class="mute">${x.rule ? `符合條款：${esc(x.rule)}・` : ""}原文：<a href="https://mops.twse.com.tw/mops/#/web/t05sr01_1" target="_blank" rel="noopener noreferrer">公開資訊觀測站</a></p></div></details>`).join("");
+  const xl = exr.map(x => `<li>${mdw(x.d)} ${x.kind}・現金 ${x.cash == null ? "待公告" : num(x.cash, x.cash < 1 ? 3 : 2) + " 元"}${x.stock ? `・配股 ${num(x.stock, 4)}` : ""}${x.yield != null ? `・殖利率 ${num(x.yield, 2)}%` : ""}</li>`).join("");
+  sections.push(ssSec(`重大訊息與除權息（近 ${ev && !ev.error ? ev.news_days : 10} 天）`, "news", !ev ? ssWait : (xl ? `<ul class="nl">${xl}</ul>` : "") +
+    (nl ? `<div class="nws">${nl}</div>` : '<p class="mute">近期沒有重大訊息。</p>') + (news.length > 20 ? `<p class="mute">只列最新 20 則，共 ${news.length} 則。</p>` : "")));
+
+  return `<div class="ssr">
+    <div class="ssh1"><div><h2>${esc(name)} <span class="mute2">${code}・${market}${etf ? "・ETF" : ""}</span></h2>
+      <p class="big ${cls(chg)}">${num(last, 2)} <small>${chg == null ? "" : `${sg(chg, 2)}（${sg(base?.pct ?? chg / prev * 100, 2)}%）`}</small></p>
+      <p class="mute">${md(st.date)} 收盤・成交 ${base ? num(base.volume) + " 張" : "-"}・近 60 日 ${pctS(p60)}・${stockLink(code, "外部個股頁 ›")}</p></div></div>
+    ${ssChart(st.price_dates, closes)}
+    <div class="ssgs">${tags.join("") || (loadingAny ? '<span class="mute">檢查各分頁中…</span>' : '<span class="mute">今天沒有出現在任何排行或篩選名單</span>')}</div>
+    <div class="ssgrid">${sections.join("")}</div>
+    <p class="fn">本頁集中顯示網站各分頁已有的資料，日期以各區塊標題為準；上方標籤是這檔股票今天出現在哪些排行或篩選名單，點了可以跳過去。資料來源：臺灣證券交易所、證券櫃檯買賣中心、集保結算所、公開資訊觀測站。不構成投資建議。</p></div>`;
+}
+
+function renderSS(box) {
+  const st = need("stock", ["ss"]);
+  if (!box.querySelector("#ssq")) {
+    box.innerHTML = `<h2 class="sec">個股查詢</h2><div class="sc opt"><div class="ssf">
+      <input id="ssq" type="search" inputmode="search" autocomplete="off" placeholder="輸入代號或名稱，例如 合晶、6182" aria-label="輸入股票代號或名稱">
+      <ul id="sssug" class="sug" hidden></ul></div><div id="ssrec"></div></div><div id="ssres"></div>`;
+    const q = box.querySelector("#ssq"), sug = box.querySelector("#sssug");
+    let hits = [], sel = 0;
+    const draw = () => {
+      const s = store.stock;
+      hits = s && !s.error ? ssMatch(s, q.value) : [];
+      sel = Math.min(sel, Math.max(0, hits.length - 1));
+      sug.hidden = !hits.length;
+      sug.innerHTML = hits.map((c, i) => `<li><button data-c="${c}" class="${i === sel ? "on" : ""}"><b>${c}</b> ${esc(s.rows[c][0])}<span class="mute2"> ${s.rows[c][1]}${s.rows[c][2] ? "・ETF" : ""}</span></button></li>`).join("");
+      sug.querySelectorAll("button").forEach(b => b.onmousedown = e => { e.preventDefault(); ssPick(b.dataset.c); });
+    };
+    q.oninput = () => { sel = 0; draw(); };
+    q.onkeydown = e => {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); sel = (sel + (e.key === "ArrowDown" ? 1 : -1) + hits.length) % Math.max(1, hits.length); draw(); }
+      else if (e.key === "Enter") { e.preventDefault(); if (hits[sel]) ssPick(hits[sel]); }
+      else if (e.key === "Escape") { sug.hidden = true; }
+    };
+    q.onblur = () => setTimeout(() => { sug.hidden = true; }, 150);
+    q.onfocus = draw;
+  }
+  const rec = box.querySelector("#ssrec"), res = box.querySelector("#ssres");
+  if (!st) { res.innerHTML = '<div class="empty">載入中…</div>'; return; }
+  if (st.error) { res.innerHTML = '<div class="empty">個股查詢資料尚未產生，下次排程後就能使用。</div>'; return; }
+  const recent = ssRecent().filter(c => st.rows[c]);
+  const quick = recent.length ? recent : (data.stocks || []).slice(0, 6).map(r => r.code).filter(c => st.rows[c]);
+  rec.innerHTML = `<p class="mute ssqk">${recent.length ? "最近查過" : "熱門個股"}：${quick.map(c => `<button class="ssg" data-c="${c}">${esc(st.rows[c][0])}</button>`).join("")}</p>`;
+  rec.querySelectorAll("[data-c]").forEach(b => b.onclick = () => ssPick(b.dataset.c));
+  res.innerHTML = ssState.code ? ssResult(ssState.code) : '<div class="empty">輸入股票代號或名稱（可以只打一部分，例如「台積」），從下拉選單選一檔，就會列出這檔在網站各分頁的資料。</div>';
+  res.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
+  bindSSChart(res);
+}
+
 const NEW_TABS = { pre: renderPre, news: renderNews, exr: renderExr, mgn: renderMgn, sbl: renderSbl, big: renderBig, trend: renderTrend };
 
 const MOB_ROWS = 30, moreOpen = new Set();   // moreOpen：已按過「顯示全部」的分頁
@@ -990,7 +1194,8 @@ function renderTab() {
     box.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
     return;
   }
-  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig", "scr", "val", "dt", "lt", ...Object.keys(NEW_TABS)].includes(tab);
+  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig", "scr", "val", "dt", "lt", "ss", ...Object.keys(NEW_TABS)].includes(tab);
+  if (tab === "ss") { renderSS(box); return; }
   if (tab === "mkt") { box.innerHTML = renderMarket(data.market_breadth); return; }
   if (tab === "sig") { box.innerHTML = renderSignals(data.signals); return; }
   if (tab === "scr") { loadScreens(); box.innerHTML = renderScreens(); bindScreens(box); return; }
@@ -1051,7 +1256,7 @@ const GROUPS = [
   ["mkt", "大盤", ICON('<path d="M3 20h18"/><path d="M4 16l5-5 4 3 7-8"/>'), [["mkt", "市場強弱"], ["trend", "趨勢"]]],
   ["fo", "期權", ICON('<path d="M7 20V5"/><path d="M3 9l4-4 4 4"/><path d="M17 4v15"/><path d="M13 15l4 4 4-4"/>'), [["fut", "台指期"], ["opt", "選擇權支撐壓力"]]],
   ["chip", "籌碼", ICON('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>'), [["cap", "權值股"], ["stocks", "熱門個股"], ["etfs", "熱門 ETF"], ["fi", "外資買賣超"], ["fi_etf", "ETF 外資"], ["mgn", "融資融券"], ["sbl", "借券賣出"], ["big", "大戶持股"]]],
-  ["pick", "選股", ICON('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>'), [["val", "營收估值"], ["lt", "長期體質"], ["scr", "籌碼篩選"]]],
+  ["pick", "選股", ICON('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>'), [["val", "營收估值"], ["lt", "長期體質"], ["scr", "籌碼篩選"], ["ss", "個股查詢"]]],
   ["ev", "事件", ICON('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'), [["news", "重大訊息"], ["exr", "除權息"]]],
   ["dt", "當沖", ICON('<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>'), [["dt", "當沖觀察"]]],
 ];
@@ -1070,9 +1275,16 @@ function drawNav() {
 }
 
 function go(t, push = true) {
+  // 個股查詢可以直接連到某一檔：#ss/6182
+  const [t0, arg] = t.split("/");
+  if (t0 === "ss" && arg) ssState.code = decodeURIComponent(arg);
+  t = t0;
   if (!GROUPS.some(g => g[3].some(([k]) => k === t))) t = "home";
+  const leaving = tab !== t;
   tab = t; sort = null;
-  if (push && location.hash.slice(1) !== t) history.pushState(null, "", "#" + t);
+  const h = t === "ss" && ssState.code ? "ss/" + ssState.code : t;
+  if (push && location.hash.slice(1) !== h) history.pushState(null, "", "#" + h);
+  if (leaving || arg) document.querySelector(".scroll").innerHTML = "";
   drawNav();
   if (data) { render(); window.scrollTo({ top: 0 }); }
 }

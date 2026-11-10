@@ -383,6 +383,15 @@ def build():
     except Exception as e:  # noqa: BLE001
         warn("籌碼篩選未更新", e)
 
+    # 個股查詢：每檔 60 日收盤價、10 日三大法人（只用上面的快取，不另外連線）：寫到 data/stock.json
+    import fetch_stock
+    try:
+        if qall is None:
+            raise RuntimeError("沒有歷史行情")
+        fetch_stock.write(fetch_stock.build(trade_date, days, price_dates, qall, quotes, is_etf, is_common_stock))
+    except Exception as e:  # noqa: BLE001
+        warn("個股查詢資料未更新", e)
+
     # 營收 × 估值 × 股價落後：寫到 data/value.json
     revenue, rev_ym, valuation = None, None, None
     try:

@@ -445,3 +445,64 @@ ul.srl li{line-height:1.6}
   table.m5 th:first-child,table.m5 td:first-child,table.fxt th:first-child,table.fxt td:first-child,table.ngt th:first-child,table.ngt td:first-child{padding-left:10px}
   table.m5 th:last-child,table.m5 td:last-child,table.fxt th:last-child,table.fxt td:last-child,table.ngt th:last-child,table.ngt td:last-child{padding-right:10px}
 }
+/* ---- 個股查詢 ---- */
+.ssf{position:relative;max-width:520px}
+#ssq{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg)}
+#ssq:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent)}
+ul.sug{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;list-style:none;margin:0;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
+ul.sug button{all:unset;box-sizing:border-box;display:block;width:100%;padding:10px 12px;border-radius:6px;cursor:pointer}
+ul.sug button.on,ul.sug button:hover{background:color-mix(in srgb,var(--accent) 12%,var(--card))}
+ul.sug b{font-variant-numeric:tabular-nums;margin-right:4px}
+.ssqk{margin:10px 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+button.ssg{font:inherit;font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--fg);cursor:pointer}
+button.ssg:hover{border-color:var(--accent);color:var(--accent)}
+button.ssg.up{border-color:var(--up);color:var(--up)}button.ssg.down{border-color:var(--down);color:var(--down)}
+.ssr{padding:4px 14px 8px}
+.ssh1 h2{margin:6px 0 2px;font-size:20px}
+.ssh1 h2 .mute2{font-size:14px;font-weight:400}
+.ssh1 .big{font-size:28px;margin:0;font-variant-numeric:tabular-nums}
+.ssh1 .big small{font-size:15px}
+.ssh1 p.mute{margin:2px 0 0}
+.ssh1 a.sl{color:var(--accent)}
+.ssc{margin:12px 0 4px}
+.ssc svg{display:block;width:100%;height:150px;cursor:crosshair;touch-action:pan-y}
+.ssc path{fill:none;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.ssc path.px{stroke:var(--call);stroke-width:2}
+.ssc path.ma{stroke:var(--put);stroke-width:1.4;stroke-dasharray:4 3}
+.ssc line.cur{stroke:var(--mute);stroke-width:1;vector-effect:non-scaling-stroke}
+.ssc p{margin:2px 0;font-size:12.5px;font-variant-numeric:tabular-nums}
+.ssc .ssh b{color:var(--fg)}
+.ssx{display:flex;justify-content:space-between}
+.lg2 i{display:inline-block;width:14px;height:0;border-top:2px solid var(--call);vertical-align:middle;margin:0 4px 0 8px}
+.lg2 i.ma{border-top:2px dashed var(--put)}
+.lg2 i:first-child{margin-left:0}
+.ssgs{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.ssgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+section.sss{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+section.sss h3{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:0 0 8px;font-size:14px}
+section.sss h3 button.lk{font-weight:400}
+section.sss .fn{margin:6px 0 0}
+section.sss .sc{overflow-x:auto}
+dl.kv{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:4px 10px;margin:0;font-size:13.5px;font-variant-numeric:tabular-nums;align-items:baseline}
+dl.kv dt{color:var(--mute);white-space:nowrap}
+dl.kv dd{margin:0;text-align:right;white-space:nowrap}
+p.cks{margin:8px 0 0;font-size:13px;line-height:1.9}
+.ck{display:inline-block;width:16px;font-weight:700}.ck.y{color:var(--up)}.ck.n{color:var(--mute)}
+table.sst{min-width:0;width:100%}
+table.sst td,table.sst th{padding:6px 6px}
+td.bar2{position:relative}
+td.bar2 i{position:absolute;right:6px;top:50%;height:60%;transform:translateY(-50%);width:calc(var(--w) * 70%);opacity:.13;border-radius:3px}
+td.bar2 i.u{background:var(--up)}td.bar2 i.d{background:var(--down)}
+td.bar2 span{position:relative}
+section.sss details.tv2{margin:8px 0 0}
+section.sss ul.nl li{padding:4px 0}
+@media (max-width:600px){
+  .ssr{padding:4px 12px 8px}
+  .ssgrid{grid-template-columns:1fr}
+  dl.kv{gap:4px 8px;font-size:13px}
+  .ssh1 .big{font-size:24px}
+  .ssc svg{height:130px}
+}
+.ssc{max-width:960px}
+table.sst{font-size:13px}
+table.sst th{font-size:12px}
