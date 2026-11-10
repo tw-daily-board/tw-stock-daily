@@ -92,6 +92,8 @@ function sumOf(rows) {
 
 // ---- 台指期盤後快訊：收盤行情表、三大法人籌碼變化、十大交易人期權淨部位 ----
 const isMob = () => matchMedia("(max-width:600px)").matches;
+// 手機轉橫向（或視窗拉寬縮窄）跨過 600px 時重畫，表格欄位跟著換成對應的版本
+matchMedia("(max-width:600px)").addEventListener("change", () => { if (data) render(); });
 const num = (v, d = 0) => v == null ? "-" : v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 const sg = (v, d = 0) => v == null ? "-" : signed(num(v, d), v);
 // 數值（上）＋ 與前一交易日的變化（下，括號）
@@ -938,7 +940,7 @@ function renderFut(f) {
   const ix = f.index, M = isMob(), dd = r => r.close % 1 ? 1 : 0;
   // 手機：漲跌與漲跌幅、OI 與 OI 增減各疊成一格，五欄剛好放得下
   const mk = M
-    ? [`<tr class="idx"><td class="name">加權指數</td><td>${num(ix.close, 2)}</td><td class="${cls(ix.change)}">${sg(ix.change, 2)}<span class="dv">${sg(ix.pct, 2)}%</span></td><td>${num(ix.value_tril * 10000, 0)} 億</td><td>-</td></tr>`]
+    ? [`<tr class="idx"><td class="name">加權</td><td>${num(ix.close, 2)}</td><td class="${cls(ix.change)}">${sg(ix.change, 2)}<span class="dv">${sg(ix.pct, 2)}%</span></td><td>${num(ix.value_tril, 2)} 兆</td><td>-</td></tr>`]
       .concat(f.market.map(r => `<tr><td class="name">${r.name}</td><td>${num(r.close, dd(r))}</td><td class="${cls(r.change)}">${sg(r.change, dd(r))}<span class="dv">${r.pct == null ? "-" : sg(r.pct, 2) + "%"}</span></td><td>${num(r.volume)}</td><td>${num(r.oi)}<span class="dv ${cls(r.oi_chg)}">(${sg(r.oi_chg)})</span></td></tr>`))
     : [`<tr class="idx"><td class="name">加權指數</td><td>${num(ix.close, 2)}</td><td class="${cls(ix.change)}">${sg(ix.change, 2)}</td><td class="${cls(ix.change)}">${sg(ix.pct, 2)}%</td><td>${num(ix.value_tril, 6)} 兆元</td><td>-</td><td>-</td></tr>`]
       .concat(f.market.map(r => `<tr><td class="name">${r.name}</td><td>${num(r.close, dd(r))}</td><td class="${cls(r.change)}">${sg(r.change, dd(r))}</td><td class="${cls(r.change)}">${r.pct == null ? "-" : sg(r.pct, 2) + "%"}</td><td>${num(r.volume)}</td><td>${num(r.oi)}</td><td class="${cls(r.oi_chg)}">${sg(r.oi_chg)}</td></tr>`));
@@ -949,7 +951,7 @@ function renderFut(f) {
     ["sp_near", "sp_far", "ot_near", "ot_far"].map(k => `<td>${vd(r[k], r[k + "_d"])}</td>`).join("") +
     (M ? "" : `<td class="oi">${num(r.oi)}<span class="dv ${cls(r.oi_d)}">(${sg(r.oi_d)})</span></td>`) + "</tr>");
   return ftable(`收盤行情表（${f.date}）`, M ? ["合約", "收盤", "漲跌", "成交量", "OI"] : ["合約", "收盤", "漲跌", "漲跌幅", "成交量", "OI", "OI增減"], mk,
-      `<p class="fn">收盤採期交所日最後結算價；成交量為一般＋盤後；OI增減為相較前一交易日${M ? "（括號）；加權指數的成交量欄為成交金額" : ""}。</p>`, "m5") +
+      `<p class="fn">收盤採期交所日最後結算價；成交量為一般＋盤後；OI增減為相較前一交易日${M ? "（括號）；加權指數的成交量欄為成交金額（兆元）" : ""}。</p>`, "m5") +
     ftable("三大法人籌碼變化（口／億元）", M ? ["", "現貨(億)", "台指(口)", "Call(口)", "Put(口)"] : ["", "現貨(金額)", "台指(口數)", "Call(口數)", "Put(口數)", "Call(金額)", "Put(金額)"], inst,
       `<p class="fn">現貨為買賣超金額（億元）；其餘為淨未平倉，括號為較前一交易日${f.prev_date ? `（${f.prev_date}）` : ""}的變化；台指為臺股期貨（不含小台、微台）。${M ? "手機版不顯示選擇權的 Call／Put 金額。" : ""}</p>`, "m5") +
     renderRetail(f.retail) +

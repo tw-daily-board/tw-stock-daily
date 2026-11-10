@@ -421,7 +421,7 @@ ul.srl li{line-height:1.6}
 }
 @media (max-width:600px){
   .mfull{display:none}.mshort{display:inline}
-  table.m5 th,table.m5 td{padding:8px 6px}
+  table.m5 th,table.m5 td{padding:8px 4px}
   table.m5 th:first-child,table.m5 td:first-child{padding-left:12px}
   table.m5 th:last-child,table.m5 td:last-child{padding-right:12px}
   table.m5 th{font-size:12px}
@@ -435,3 +435,13 @@ ul.srl li{line-height:1.6}
   .tv summary,details.tv2 summary{padding:8px 0}
 }
 .sc:not(.opt)>p.mute,.sc:not(.opt)>p.behind{margin:6px 14px}
+/* 窄手機（360 寬以下的 Android、iPhone SE/mini 縮放模式）：五欄表格縮小字級才放得下 */
+@media (max-width:380px){
+  table.m5 td,table.fxt td,table.ngt td,table.wd td{font-size:13px}
+  table.m5 th,table.fxt th,table.ngt th,table.wd th{font-size:11.5px}
+  table.m5 .dv{font-size:11px}
+  table.m5 th,table.m5 td,table.fxt th,table.fxt td,table.ngt th,table.ngt td,table.wd th,table.wd td{padding:8px 3px}
+  table.wd th:first-child,table.wd td:first-child{padding-left:10px}table.wd th:last-child,table.wd td:last-child{padding-right:10px}
+  table.m5 th:first-child,table.m5 td:first-child,table.fxt th:first-child,table.fxt td:first-child,table.ngt th:first-child,table.ngt td:first-child{padding-left:10px}
+  table.m5 th:last-child,table.m5 td:last-child,table.fxt th:last-child,table.fxt td:last-child,table.ngt th:last-child,table.ngt td:last-child{padding-right:10px}
+}
