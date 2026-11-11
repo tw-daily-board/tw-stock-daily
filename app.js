@@ -151,6 +151,55 @@ function renderOpt(o, pc, date) {
   </div>`;
 }
 
+// ---- 選擇權建倉：三大法人買賣權分計（官方）＋逐履約價建倉熱區與買方／賣方推測 ----
+let obSel = 0;
+const GUESS_CLS = { "偏賣方": "gs", "偏買方": "gb", "不明": "gn" };
+const guessTag = g => `<span class="gtag ${GUESS_CLS[g] || "gn"}">${g === "不明" ? "不明" : "推測" + g}</span>`;
+function renderOB(b) {
+  if (!b) return '<div class="empty">建倉分析需要前一交易日的資料，下次期貨排程後顯示。</div>';
+  const M = isMob(), r = b.rule;
+  // 官方：三大法人買方／賣方未平倉
+  const keys = [["call_b", "Buy Call"], ["call_s", "Sell Call"], ["put_b", "Buy Put"], ["put_s", "Sell Put"]];
+  const inst = b.inst.map(x => `<tr><td class="name">${x.name}</td>` + keys.map(([k]) =>
+    `<td>${num(x[k])}<span class="dv ${cls(x[k + "_d"])}">(${sg(x[k + "_d"])})</span>${M ? "" : `<span class="dv mute">${num(x[k + "_amt"], 2)} 億</span>`}</td>`).join("") + "</tr>");
+  // 外資今日變化最大的一項（事實敘述）
+  const fi = b.inst[0], big = keys.slice().sort((a, c) => Math.abs(fi[c[0] + "_d"]) - Math.abs(fi[a[0] + "_d"]))[0];
+  const fiLine = `外資今日變化最大的是 <b>${big[1]}</b> 未平倉 <b class="${cls(fi[big[0] + "_d"])}">${sg(fi[big[0] + "_d"])}</b> 口；` +
+    keys.map(([k, t]) => `${t} ${sg(fi[k + "_d"])}`).join("、") + "。";
+  const instHtml = ftable(`三大法人選擇權買賣方未平倉（口）<span class="otag">官方資料</span>`, ["", "Buy Call", "Sell Call", "Buy Put", "Sell Put"], inst,
+    `<p class="obl">${fiLine}</p><p class="fn">期交所「三大法人－選擇權買賣權分計」，臺指選擇權所有到期月份合計；Buy＝買方未平倉、Sell＝賣方未平倉，括號為較前一交易日（${b.prev_date}）的變化${M ? "" : "，下方為未平倉契約金額"}。這是各身份別的加總，看不出建在哪個履約價。</p>`, "m5 obi");
+  if (!b.series.length) return `<h2 class="sec">選擇權建倉（臺指選擇權，${b.date}）</h2>` + instHtml;
+  const s = b.series[Math.min(obSel, b.series.length - 1)];
+  const tabs = b.series.map((x, i) => `<button data-ob="${i}" class="${x === s ? "on" : ""}">${x.label}</button>`).join("");
+  const rng = s.range, rp = rng.put, rc = rng.call;
+  const rangeBox = `<div class="infer"><h3><span class="gtag gs">推測</span> 賣方佈局區間</h3>` +
+    (rp && rc ? `<p class="big">${num(rp.strike)} ～ ${num(rc.strike)}</p>
+      <p>指數下方：賣權 <b>${num(rp.strike)}</b> 未平倉 +${num(rp.d)} 口、隱含波動率 ${sg(rp.iv_d, 1)}；指數上方：買權 <b>${num(rc.strike)}</b> 未平倉 +${num(rc.d)} 口、隱含波動率 ${sg(rc.iv_d, 1)}。</p>
+      <p class="mute">意思接近「Sell Put ${num(rp.strike)} ＋ Sell Call ${num(rc.strike)}」（賣勒式）：押指數到期時待在這個區間內。這是全市場加總後的推測，<b>不代表有人真的同時建了這組部位</b>。</p>`
+    : `<p class="big">無法推測</p><p class="mute">${rp ? `指數下方有偏賣方建倉（賣權 ${num(rp.strike)}），` : "指數下方的賣權沒有偏賣方的明顯建倉，"}${rc ? `指數上方有偏賣方建倉（買權 ${num(rc.strike)}）。` : "指數上方的買權沒有偏賣方的明顯建倉。"}兩邊都有才組成區間。</p>`) + "</div>";
+  const ctx = `<div><h3>此系列背景</h3><p>對應台指期 <b>${num(s.fwd, 0)}</b>・距到期 ${s.days} 個交易日</p>
+    <p>價平隱含波動率 <b>${s.atm_iv == null ? "-" : num(s.atm_iv, 1) + "%"}</b>（${s.atm_d == null ? "-" : sg(s.atm_d, 1)}）</p>
+    <p>未平倉 買權 <span class="${cls(s.call_d)}">${sg(s.call_d)}</span>・賣權 <span class="${cls(s.put_d)}">${sg(s.put_d)}</span> 口</p>
+    ${s.atm_d != null && Math.abs(s.atm_d) >= 3 ? `<p class="warn">今天整體波動率${s.atm_d < 0 ? "大跌" : "大漲"}，多數價位都會被判成${s.atm_d < 0 ? "偏賣方" : "偏買方"}，推測參考性較低。</p>` : ""}
+    ${s.days <= 2 ? '<p class="warn">距到期 2 個交易日內，隱含波動率變化很大，推測更不可靠。</p>' : ""}</div>`;
+  const side = (rows, t, c) => {
+    const head = M ? ["履約價", "OI 增加", "結算價", "IV 變化", "推測"] : ["履約價", "未平倉", "增加", "成交量", "結算價", "漲跌", "隱含波動率", "IV 變化", "推測"];
+    const body = rows.length ? rows.map(x => M
+      ? `<tr><td class="name ${c}">${num(x.strike)}</td><td>+${num(x.d)}<span class="dv">${num(x.oi)}</span></td><td>${x.px == null ? "-" : num(x.px, 1)}<span class="dv ${cls(x.px_d)}">${x.px_d == null ? "" : sg(x.px_d, 1)}</span></td><td>${x.iv_d == null ? "-" : sg(x.iv_d, 1)}</td><td>${guessTag(x.guess)}</td></tr>`
+      : `<tr><td class="name ${c}">${num(x.strike)}</td><td>${num(x.oi)}</td><td>+${num(x.d)}</td><td>${num(x.vol)}</td><td>${x.px == null ? "-" : num(x.px, 1)}</td><td class="${cls(x.px_d)}">${x.px_d == null ? "-" : sg(x.px_d, 1)}</td><td>${x.iv == null ? "-" : num(x.iv, 1) + "%"}</td><td>${x.iv_d == null ? "-" : sg(x.iv_d, 1)}</td><td>${guessTag(x.guess)}</td></tr>`).join("")
+      : `<tr><td colspan="${head.length}" class="mute">沒有未平倉增加 ${r.min} 口以上的履約價</td></tr>`;
+    return `<h3 class="obh"><i class="${c}"></i>${t}</h3><table class="ft m5 obt"><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>`;
+  };
+  return `<h2 class="sec">選擇權建倉（臺指選擇權，${b.date}）</h2>` + instHtml +
+    `<h2 class="sec">建倉熱區與推測<span class="gtag gs">含推測</span></h2><div class="sc opt">
+    <nav class="optnav">${tabs}</nav>
+    <div class="sr">${rangeBox}${ctx}</div>
+    ${side(s.call, `買權建倉前 ${r.top}（未平倉增加最多）`, "call")}
+    ${side(s.put, `賣權建倉前 ${r.top}（未平倉增加最多）`, "put")}
+    <p class="fn"><b>官方數字</b>：未平倉、增加口數、成交量、結算價（期交所逐履約價行情）。<b>推測</b>：每一口未平倉同時有買方與賣方，公開資料看不出是誰新增的，也看不出不同履約價是不是同一人建的。這裡用「隱含波動率變化」推測：以台指期結算價為標的、利率 0、依交易日計算到期時間反推同一履約價的隱含波動率，未平倉增加且隱含波動率下降 ${r.iv_th} 個百分點以上推測偏賣方（權利金比理論便宜，賣方急著賣），上升 ${r.iv_th} 個百分點以上推測偏買方，其餘為不明；權利金低於 ${r.min_premium} 點時不推測。只列指數上下 ${Math.round(r.range * 100)}% 內、未平倉增加 ${r.min} 口以上的價位。指數大漲大跌、整體波動率變化、接近到期都會影響判斷，僅供參考，不構成投資建議。</p>
+  </div>`;
+}
+
 // ---- 市場整體強弱：指數與量能、漲跌家數、近 10 日騰落、類股資金 ----
 function breadthCard(title, m) {
   const tot = m.up + m.down + m.flat || 1;
@@ -1194,7 +1243,7 @@ function renderTab() {
     box.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
     return;
   }
-  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "mkt", "sig", "scr", "val", "dt", "lt", "ss", ...Object.keys(NEW_TABS)].includes(tab);
+  document.getElementById("view").hidden = isFi(tab) || ["fut", "opt", "ob", "mkt", "sig", "scr", "val", "dt", "lt", "ss", ...Object.keys(NEW_TABS)].includes(tab);
   if (tab === "ss") { renderSS(box); return; }
   if (tab === "mkt") { box.innerHTML = renderMarket(data.market_breadth); return; }
   if (tab === "sig") { box.innerHTML = renderSignals(data.signals); return; }
@@ -1220,6 +1269,11 @@ function renderTab() {
       el.onclick = tog;
       el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tog(); } };
     });
+    return;
+  }
+  if (tab === "ob") {
+    box.innerHTML = data.fut ? renderOB(data.fut.build) : '<div class="empty">期交所資料尚未公布，之後排程會自動補上。</div>';
+    box.querySelectorAll("[data-ob]").forEach(b => b.onclick = () => { obSel = +b.dataset.ob; render(); });
     return;
   }
   if (tab === "fut") {
@@ -1254,7 +1308,7 @@ const ICON = p => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" s
 const GROUPS = [
   ["home", "總覽", ICON('<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>'), [["home", "今日重點"], ["pre", "盤前速覽"], ["sig", "綜合訊號"]]],
   ["mkt", "大盤", ICON('<path d="M3 20h18"/><path d="M4 16l5-5 4 3 7-8"/>'), [["mkt", "市場強弱"], ["trend", "趨勢"]]],
-  ["fo", "期權", ICON('<path d="M7 20V5"/><path d="M3 9l4-4 4 4"/><path d="M17 4v15"/><path d="M13 15l4 4 4-4"/>'), [["fut", "台指期"], ["opt", "選擇權支撐壓力"]]],
+  ["fo", "期權", ICON('<path d="M7 20V5"/><path d="M3 9l4-4 4 4"/><path d="M17 4v15"/><path d="M13 15l4 4 4-4"/>'), [["fut", "台指期"], ["opt", "選擇權支撐壓力"], ["ob", "選擇權建倉"]]],
   ["chip", "籌碼", ICON('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>'), [["cap", "權值股"], ["stocks", "熱門個股"], ["etfs", "熱門 ETF"], ["fi", "外資買賣超"], ["fi_etf", "ETF 外資"], ["mgn", "融資融券"], ["sbl", "借券賣出"], ["big", "大戶持股"]]],
   ["pick", "選股", ICON('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>'), [["val", "營收估值"], ["lt", "長期體質"], ["scr", "籌碼篩選"], ["ss", "個股查詢"]]],
   ["ev", "事件", ICON('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'), [["news", "重大訊息"], ["exr", "除權息"]]],
