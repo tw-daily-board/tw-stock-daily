@@ -1,0 +1,30 @@
+name: backtest-download
+# 一次性回測資料下載：只在 backtest/fi-margin 分支推送時執行，結果提交回同一分支，不部署網站
+on:
+  push:
+    branches: [backtest/fi-margin]
+    paths: [backtest/fetch.py, .github/workflows/backtest.yml]
+permissions:
+  contents: write
+concurrency:
+  group: backtest
+  cancel-in-progress: true
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 下載 2026-03-13～2026-11-11 每日資料
+        run: python backtest/fetch.py 2026-03-13 2026-11-11
+      - name: 提交結果到本分支
+        if: ${{ !cancelled() }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backtest/data.json.gz
+          git diff --cached --quiet || git commit -m "backtest: 下載回測資料"
+          git push origin HEAD:backtest/fi-margin
