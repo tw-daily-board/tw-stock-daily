@@ -36,7 +36,7 @@ CHART_RANGE = 0.10      # 分布圖畫指數上下 10%
 CHART_MIN_OI = 800      # 分布圖只畫買權或賣權至少一邊未平倉達 800 口的履約價
 WEEKDAY = "一二三四五六日"
 BUILD_TOP = 5           # 建倉熱區：每邊列未平倉增加最多的幾個履約價
-BUILD_MIN = 100         # 未平倉至少增加這麼多口才列入
+BUILD_MIN = 200         # 未平倉至少增加這麼多口才列入
 IV_TH = 1.0             # 隱含波動率變化（百分點）超過這個門檻才推測買方或賣方
 MIN_PREMIUM = 1.0       # 權利金低於 1 點時隱含波動率不可靠，不推測
 
@@ -324,7 +324,14 @@ def build(get_json, trade_date: date, gap=3.0):
     out["retail"] = retail_view(snap, prev, trend)
     out["opt"] = opt_view(snap, prev, idx["close"])
     out["pc"] = fetch_pc(trade_date)
-    out["build"] = build_view(snap, prev, idx["close"])
+    # 建倉分析獨立：出錯只讓這一頁顯示「尚未產生」，台指期與支撐壓力照常更新
+    try:
+        out["build"] = build_view(snap, prev, idx["close"])
+    except Exception as e:  # noqa: BLE001
+        msg = f"{type(e).__name__}: {e}"
+        print(f"選擇權建倉分析失敗：{msg}", file=sys.stderr)
+        print("::error title=選擇權建倉分析未產生::" + msg[:500].replace("\n", " "))
+        out["build"] = None
     return out
 
 

@@ -156,7 +156,7 @@ let obSel = 0;
 const GUESS_CLS = { "偏賣方": "gs", "偏買方": "gb", "不明": "gn" };
 const guessTag = g => `<span class="gtag ${GUESS_CLS[g] || "gn"}">${g === "不明" ? "不明" : "推測" + g}</span>`;
 function renderOB(b) {
-  if (!b) return '<div class="empty">建倉分析需要前一交易日的資料，下次期貨排程後顯示。</div>';
+  if (!b) return '<div class="empty">選擇權建倉分析尚未產生，之後排程會自動補上。</div>';
   const M = isMob(), r = b.rule;
   // 官方：三大法人買方／賣方未平倉
   const keys = [["call_b", "Buy Call"], ["call_s", "Sell Call"], ["put_b", "Buy Put"], ["put_s", "Sell Put"]];
