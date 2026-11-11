@@ -505,10 +505,9 @@ def build_view(snap, prev, ref):
         inst.append(row)
     series = []
     after = [(k, v) for k, v in snap["opt"].items() if v["exp"] > snap["date"].replace("-", "")]
-    for code, s in sorted(after, key=lambda kv: kv[1]["exp"])[:OPT_SERIES]:
-        ps = prev["opt"].get(code)
-        if ps is None:
-            continue
+    # 新掛牌的系列前一日沒有資料、算不出增減，跳過並往後補滿 OPT_SERIES 個
+    for code, s in [kv for kv in sorted(after, key=lambda kv: kv[1]["exp"]) if kv[0] in prev["opt"]][:OPT_SERIES]:
+        ps = prev["opt"][code]
         e = date(int(s["exp"][:4]), int(s["exp"][4:6]), int(s["exp"][6:8]))
         kind = "週選" if any(x in code[6:] for x in "WF") else "月選"
         F1, F0 = forward(snap, code), forward(prev, code)
