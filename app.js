@@ -275,7 +275,7 @@ function renderSignals(s) {
 
 // ---- 籌碼篩選：連買連賣、籌碼背離、隔日沖（讀 data/screens.json，第一次打開分頁才載入） ----
 let scr = null, scrState = { mode: "streak", cat: "fi", dir: 1, min: 3, etf: false, sort: null, flipView: null };
-const SCR_MODES = [["streak", "連買連賣"], ["diverge", "籌碼背離"], ["flips", "隔日沖"]];
+const SCR_MODES = [["streak", "連買連賣"], ["diverge", "籌碼背離"], ["flips", "隔日沖"], ["combo", "四項條件"]];
 const pctCell = v => v == null ? "<td>-</td>" : `<td class="${cls(v)}">${sg(v, 2)}%</td>`;
 const lotCell = v => `<td class="${cls(v)}">${sg(v)}</td>`;
 
@@ -295,6 +295,7 @@ function flipRows() {
 }
 
 function renderScreens() {
+  if (scrState.mode === "combo") return renderCombo();
   if (!scr) return '<div class="empty">載入中…</div>';
   if (scr.error) return `<div class="empty">${scr.error}</div>`;
   const s = scrState, R = scr.rules;
@@ -347,6 +348,7 @@ function bindScreens(box) {
   set("[data-sn]", b => { scrState.min = +b.dataset.sn; });
   set("[data-se]", b => { scrState.etf = b.dataset.se === "1"; });
   set("[data-sfv]", b => { scrState.flipView = b.dataset.sfv; });
+  set("[data-srv]", b => { scrState.rev = b.dataset.srv; });
   box.querySelectorAll("[data-ssk]").forEach(el => el.onclick = () => {
     const k = el.dataset.ssk, cur = scrState.sort;
     scrState.sort = cur?.k === k ? { k, dir: -cur.dir } : { k, dir: ["rank", "code", "name", "market"].includes(k) ? 1 : -1 };
@@ -363,6 +365,57 @@ function loadScreens() {
     .then(j => { scr = j; })
     .catch(() => { scr = { error: "籌碼篩選資料尚未產生，之後排程會自動補上。" }; })
     .finally(() => { if (tab === "scr" || tab === "ss") render(); });
+}
+
+// ---- 四項條件選股：估算融資維持率、董監持股、成交量、營收連續 2 個月成長（讀 data/combo.json） ----
+let combo = null, comboLoading = false;
+function loadCombo() {
+  if (combo || comboLoading) return;
+  comboLoading = true;
+  fetch("data/combo.json", { cache: "no-cache" })
+    .then(r => { if (!r.ok) throw 0; return r.json(); })
+    .then(j => { combo = j.rows ? j : { error: 1 }; })
+    .catch(() => { combo = { error: 1 }; })
+    .finally(() => { if (tab === "scr") render(); });
+}
+
+function renderCombo() {
+  const s = scrState, btn = (attr, val, label, on) => `<button ${attr}="${val}" class="${on ? "on" : ""}">${label}</button>`;
+  const modes = `<nav class="optnav">${SCR_MODES.map(([k, t]) => btn("data-sm", k, t, s.mode === k)).join("")}</nav>`;
+  if (!combo) { loadCombo(); return `<h2 class="sec">籌碼篩選</h2><div class="sc opt">${modes}</div><div class="empty">載入中…</div>`; }
+  if (combo.error) return `<h2 class="sec">籌碼篩選</h2><div class="sc opt">${modes}</div><div class="empty">四項條件選股尚未產生，之後排程會自動補上。</div>`;
+  const R = combo.rules, rk = s.rev || "mom", rl = rk === "mom" ? "月增" : "年增";
+  const mon = combo.rev_months.map(m => +m.slice(5) + "月");
+  const rows = combo.rows.filter(r => r[rk].every(v => v != null && v > 0)).map((r, i) => ({ ...r, r0: r[rk][0], r1: r[rk][1], rank: i + 1 }));
+  if (s.sort) {
+    const { k, dir } = s.sort;
+    rows.sort((a, b) => (typeof a[k] === "string" ? a[k].localeCompare(b[k]) : (a[k] ?? -Infinity) - (b[k] ?? -Infinity)) * dir);
+  }
+  const cols = [["rank", "#"], ["code", "代號"], ["name", "名稱"], ["market", "市場"], ["close", "收盤價"], ["pct", "漲跌幅"], ["volume", "成交量(張)"],
+    ["mr", '融資維持率<span class="gtag gs">估算</span>'], ["dir", "董監持股"], ["fin", "融資餘額(張)"], ["r0", `${mon[0]}營收${rl}`], ["r1", `${mon[1]}營收${rl}`]];
+  const M = isMob(), pct1 = v => v == null ? "<td>-</td>" : `<td class="${cls(v)}">${sg(v, 1)}%</td>`;
+  const cell = {
+    rank: r => `<td>${r.rank}</td>`, code: r => `<td>${stockLink(r.code, r.code)}</td>`, name: r => `<td class="name">${stockLink(r.code, r.name)}</td>`,
+    market: r => `<td>${r.market}</td>`, close: r => `<td>${r.close.toFixed(2)}</td>`, pct: r => pctCell(r.pct), volume: r => `<td>${num(r.volume)}</td>`,
+    mr: r => `<td>${num(r.mr, 1)}%</td>`, dir: r => `<td>${num(r.dir, M ? 1 : 2)}%</td>`, fin: r => `<td>${num(r.fin)}</td>`, r0: r => M ? pct1(r.r0) : pctCell(r.r0), r1: r => M ? pct1(r.r1) : pctCell(r.r1),
+  };
+  // 手機：只留名稱、維持率、董監與兩個月營收（成交量都已超過門檻），其餘欄位點名稱到個股查詢看
+  const show = M ? cols.filter(([k]) => ["name", "mr", "dir", "r0", "r1"].includes(k))
+    .map(([k, t]) => [k, { mr: '維持率<span class="gtag gs">估</span>', dir: "董監", volume: "量(張)", r0: mon[0], r1: mon[1] }[k] || t]) : cols;
+  const th = show.map(([k, t]) => `<th data-ssk="${k}" class="${s.sort?.k === k ? (s.sort.dir > 0 ? "asc" : "desc") : ""}">${t}</th>`).join("");
+  const body = rows.map(r => `<tr>${show.map(([k]) => cell[k](r)).join("")}</tr>`).join("");
+  const c = combo.counts;
+  return `<h2 class="sec">籌碼篩選（${combo.date}）</h2><div class="sc opt">${modes}
+    <nav class="optnav">${btn("data-srv", "mom", "營收月增", rk === "mom")}${btn("data-srv", "yoy", "營收年增", rk === "yoy")}</nav>
+    <p class="mute">條件：① 融資維持率 &lt; ${R.mr}%（<b>估算</b>）② 董監持股 &gt; ${R.dir}%（${combo.dir_ym.replace("-", " 年 ")} 月申報）③ 當日成交量 &gt; ${num(R.vol)} 張 ④ ${mon.join("、")}營收${rl}率都 &gt; 0（上市、上櫃普通股）。
+    單項符合：① ${num(c.mr)} 檔、② ${num(c.dir)} 檔、③ ${num(c.vol)} 檔；①～③ 同時符合 ${c.all3} 檔，加上 ④ 共 ${rows.length} 檔。</p></div>
+    <div class="sc"><table class="ft scr${M ? " cmb" : ""}"><thead><tr>${th}</tr></thead><tbody>${body || `<tr><td colspan="${show.length}" class="mute">今天沒有同時符合四項條件的個股</td></tr>`}</tbody></table>
+    <p class="fn"><span class="gtag gs">估算</span> 證交所與櫃買中心只公布個股融資「張數」，沒有融資金額，所以融資維持率是推估值，<b>不是官方數字</b>：
+    每天融資增加的張數視為當天以收盤價買進的一批；融資減少時，先扣掉已跌破追繳線（${R.call * 100}%）的批次（視為斷頭或償還），不夠再從最早的批次扣；
+    維持率 ＝ 收盤價 ÷（融資成本 × 融資成數），成數一律假設 ${R.rate * 10} 成，個股調降成數、除權息、減資都沒有調整。起算日為 2026/3/13（當天餘額視為當天收盤價買進），
+    實際維持率是以整戶計算，個股估算值只能參考。
+    官方資料：董監持股＝證交所、櫃買中心公開資訊的董監事逐人持股（董事長、副董事長、常務董事、董事、獨立董事、監察人本人，法人董事算法人本身，不含法人代表人個人與關係人）÷ 已發行普通股數；
+    營收為公開資訊觀測站月營收；成交量與收盤價為當日行情。此為規則篩選，不構成投資建議。</p></div>`;
 }
 
 // 散戶多空比（坊間算法）：散戶＝全市場未平倉扣掉三大法人

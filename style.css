@@ -131,6 +131,8 @@ table.sig tr.g1 td{border-top:2px solid var(--line)}
 table.scr td:nth-child(-n+4),table.scr thead tr:first-child th:nth-child(-n+4){text-align:left}
 table.val td:nth-child(n+5),table.val thead tr:first-child th:nth-child(n+5){text-align:right}
 table.scr td a.sl{font-weight:inherit}
+table.scr.cmb td:nth-child(n+2),table.scr.cmb thead tr:first-child th:nth-child(n+2){text-align:right}
+table.scr.cmb th .gtag{margin-left:2px;padding:0 4px}
 td.hot5{font-weight:700;color:var(--accent)}
 /* 營收估值 */
 .nt{display:inline-block;font:inherit;font-size:11px;color:var(--accent);background:none;border:1px solid var(--accent);border-radius:4px;padding:0 3px;cursor:pointer;font-weight:400}
