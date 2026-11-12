@@ -493,7 +493,7 @@ def update_sbl(out, deadline, loud):
             except Exception as e:  # noqa: BLE001
                 warn(f"{label}未更新", e)
                 break
-    # 四項條件選股（估算融資維持率要用當天融資餘額）：融資融券更新到今天才算；失敗只影響這一頁
+    # 董監融資篩選（估算融資維持率要用當天融資餘額）：融資融券更新到今天才算；失敗只影響這一頁
     if json_date("margin.json") == (dates[0].isoformat() if dates else None):
         import fetch_combo
         try:
@@ -501,8 +501,8 @@ def update_sbl(out, deadline, loud):
                                datetime.now(timezone(timedelta(hours=8))).date())
         except Exception as e:  # noqa: BLE001
             msg = f"{type(e).__name__}: {e}"
-            print(f"四項條件選股失敗：{msg}", file=sys.stderr)
-            print("::error title=四項條件選股未產生::" + msg[:500].replace("\n", " "))
+            print(f"董監融資篩選失敗：{msg}", file=sys.stderr)
+            print("::error title=董監融資篩選未產生::" + msg[:500].replace("\n", " "))
             fetch_combo.OUT.write_text(json.dumps({"date": None, "error": msg}, ensure_ascii=False))   # 網頁顯示「尚未產生」
 
 

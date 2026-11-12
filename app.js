@@ -275,7 +275,7 @@ function renderSignals(s) {
 
 // ---- 籌碼篩選：連買連賣、籌碼背離、隔日沖（讀 data/screens.json，第一次打開分頁才載入） ----
 let scr = null, scrState = { mode: "streak", cat: "fi", dir: 1, min: 3, etf: false, sort: null, flipView: null };
-const SCR_MODES = [["streak", "連買連賣"], ["diverge", "籌碼背離"], ["flips", "隔日沖"], ["combo", "四項條件"]];
+const SCR_MODES = [["streak", "連買連賣"], ["diverge", "籌碼背離"], ["flips", "隔日沖"], ["combo", "董監融資篩選"]];
 const pctCell = v => v == null ? "<td>-</td>" : `<td class="${cls(v)}">${sg(v, 2)}%</td>`;
 const lotCell = v => `<td class="${cls(v)}">${sg(v)}</td>`;
 
@@ -367,7 +367,7 @@ function loadScreens() {
     .finally(() => { if (tab === "scr" || tab === "ss") render(); });
 }
 
-// ---- 四項條件選股：估算融資維持率、董監持股、成交量、營收連續 2 個月成長（讀 data/combo.json） ----
+// ---- 董監融資篩選：估算融資維持率、董監持股、成交量、營收連續 2 個月成長（讀 data/combo.json） ----
 let combo = null, comboLoading = false;
 function loadCombo() {
   if (combo || comboLoading) return;
@@ -383,7 +383,7 @@ function renderCombo() {
   const s = scrState, btn = (attr, val, label, on) => `<button ${attr}="${val}" class="${on ? "on" : ""}">${label}</button>`;
   const modes = `<nav class="optnav">${SCR_MODES.map(([k, t]) => btn("data-sm", k, t, s.mode === k)).join("")}</nav>`;
   if (!combo) { loadCombo(); return `<h2 class="sec">籌碼篩選</h2><div class="sc opt">${modes}</div><div class="empty">載入中…</div>`; }
-  if (combo.error) return `<h2 class="sec">籌碼篩選</h2><div class="sc opt">${modes}</div><div class="empty">四項條件選股尚未產生，之後排程會自動補上。</div>`;
+  if (combo.error) return `<h2 class="sec">籌碼篩選</h2><div class="sc opt">${modes}</div><div class="empty">董監融資篩選尚未產生，之後排程會自動補上。</div>`;
   const R = combo.rules, rk = s.rev || "mom", rl = rk === "mom" ? "月增" : "年增";
   const mon = combo.rev_months.map(m => +m.slice(5) + "月");
   const rows = combo.rows.filter(r => r[rk].every(v => v != null && v > 0)).map((r, i) => ({ ...r, r0: r[rk][0], r1: r[rk][1], rank: i + 1 }));
