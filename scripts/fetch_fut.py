@@ -450,9 +450,10 @@ def trading_years(d, exp):
 
 
 def forward(snap, code):
-    """系列對應的台指期結算價：同月份（未到期）或之後最近的月份"""
+    """系列對應的台指期結算價：同月份（未到期）或之後最近的月份；
+    月結算日當天到期月份的結算價是 0（最後結算價另外公布），要跳過改用下一個月份"""
     qs = snap["quotes"]["TX"]
-    ms = sorted(m for m in qs if m >= code[:6] and qs[m]["settle"] is not None)
+    ms = sorted(m for m in qs if m >= code[:6] and (qs[m]["settle"] or 0) > 0)
     return qs[ms[0]]["settle"] if ms else None
 
 
