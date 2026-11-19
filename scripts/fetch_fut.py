@@ -255,8 +255,8 @@ def opt_view(snap, prev, ref):
 def fetch_cash(get_json, d):
     """三大法人現貨買賣超金額（億元）與加權指數、成交金額（兆元）"""
     j = get_json(f"https://www.twse.com.tw/rwd/zh/fund/BFI82U?dayDate={d:%Y%m%d}&type=day&response=json")
-    if j.get("stat") != "OK":
-        raise RuntimeError("BFI82U 無資料")
+    if j.get("stat") != "OK":   # 證交所常比期交所晚幾分鐘公布：視為尚未公布，讓 15:15 那次繼續重試
+        raise NotPublished(f"證交所 {d} 三大法人買賣金額（BFI82U）尚未公布")
     rows = {r[0].strip(): fnum(r[3]) for r in j["data"]}
     fi = rows["外資及陸資(不含外資自營商)"] + rows.get("外資自營商", 0)
     dl = rows["自營商(自行買賣)"] + rows["自營商(避險)"]
@@ -265,7 +265,7 @@ def fetch_cash(get_json, d):
     j = get_json(f"https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK?date={d:%Y%m%d}&response=json")
     row = next((r for r in j.get("data", []) if r[0].replace("/", "") == f"{d.year - 1911}{d:%m%d}"), None)
     if row is None:
-        raise RuntimeError("FMTQIK 找不到當日")
+        raise NotPublished(f"證交所 {d} 加權指數與成交金額（FMTQIK）尚未公布")
     idx = {"close": fnum(row[4]), "change": fnum(row[5]), "value_tril": fnum(row[2]) / 1e12}
     idx["pct"] = round(idx["change"] / (idx["close"] - idx["change"]) * 100, 2)
     return {k: round(v / 1e8, 2) for k, v in cash.items()}, idx
