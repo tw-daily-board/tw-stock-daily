@@ -515,7 +515,8 @@ def run_pre(today, require):
     now = lambda: datetime.now(timezone(timedelta(hours=8))).isoformat(timespec="seconds")  # noqa: E731
     while True:
         try:
-            fetch_pre.write(fetch_pre.build(today, now(), warn, fallback="pre" not in require))
+            fetch_pre.write(fetch_pre.build(today, now(), warn, fallback="pre" not in require,
+                                            may_wait=lambda: time.time() + 300 < deadline))
             print(f"OK 盤前 {today}")
             return
         except fetch_fut.NotPublished as e:

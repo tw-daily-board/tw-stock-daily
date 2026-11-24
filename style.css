@@ -377,6 +377,7 @@ table.wd td .fg{display:inline-block;margin-left:4px}
   table.ngt th:nth-child(5),table.ngt td:nth-child(5),table.ngt th:nth-child(6),table.ngt td:nth-child(6){display:none}
   table.fxt th:nth-child(2),table.fxt td:nth-child(2),table.fxt th:nth-child(3),table.fxt td:nth-child(3){display:none}
   table.ngt th,table.ngt td,table.fxt th,table.fxt td{padding:8px 7px}
+  table.ngi th,table.ngi td,table.ngo th,table.ngo td{padding:8px 7px}
 }
 
 /* 重大訊息：同公司同一天收成一組 */
@@ -446,6 +447,10 @@ ul.srl li{line-height:1.6}
   table.wd th:first-child,table.wd td:first-child{padding-left:10px}table.wd th:last-child,table.wd td:last-child{padding-right:10px}
   table.m5 th:first-child,table.m5 td:first-child,table.fxt th:first-child,table.fxt td:first-child,table.ngt th:first-child,table.ngt td:first-child{padding-left:10px}
   table.m5 th:last-child,table.m5 td:last-child,table.fxt th:last-child,table.fxt td:last-child,table.ngt th:last-child,table.ngt td:last-child{padding-right:10px}
+  table.ngi td,table.ngo td{font-size:13px}table.ngi th,table.ngo th{font-size:11.5px}
+  table.ngi th,table.ngi td,table.ngo th,table.ngo td{padding:8px 3px}
+  table.ngi th:first-child,table.ngi td:first-child,table.ngo th:first-child,table.ngo td:first-child{padding-left:10px}
+  table.ngi th:last-child,table.ngi td:last-child,table.ngo th:last-child,table.ngo td:last-child{padding-right:10px}
 }
 /* ---- 個股查詢 ---- */
 .ssf{position:relative;max-width:520px}
@@ -515,7 +520,7 @@ table.sst th{font-size:12px}
 .gtag{border:1px dashed currentColor}
 .gtag.gs{color:#8a5cd6}.gtag.gb{color:#c58a00}.gtag.gn{color:var(--mute)}
 table.ft td span.gtag{display:inline-block;margin:0}
-table.obt,table.obi{max-width:980px}
+table.obt,table.obi,table.ngi,table.ngo{max-width:980px}
 .sr>div.infer{border:1.5px dashed #8a5cd6}
 .infer h3 .gtag{margin:0 4px 0 0}
 .sr>div p.warn{color:#c58a00;font-size:12px}

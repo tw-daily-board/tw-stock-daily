@@ -739,7 +739,26 @@ function renderPre() {
     `<div class="w2"><div>` + ftable(`期貨夜盤（近月，${md(nd)} 交易日）`, ["合約", "收盤", "漲跌", "漲跌幅", "最高", "最低", "成交量"], night,
       nightNote + `<p class="fn">夜盤為前一個交易日 15:00～隔天 05:00；期交所把它記在下一個交易日（遇到休市會跳過，例如週五晚上的夜盤記在週一）。漲跌相對前一個交易日的結算價（不是日盤收盤價）。手機版不顯示最高、最低。</p>`, "ngt") + `</div><div>` +
     ftable("匯率（期交所每日外幣參考匯率）", ["", ...fxd.map(md), "較前日"], fx,
-      `<p class="fn">每日外幣參考匯率為前一個交易日的資料；美元／新台幣數字變大＝新台幣貶值。手機版只顯示最近 3 天。</p>`, "fxt") + `</div></div>` + worldHtml(p.world) + news;
+      `<p class="fn">每日外幣參考匯率為前一個交易日的資料；美元／新台幣數字變大＝新台幣貶值。手機版只顯示最近 3 天。</p>`, "fxt") + `</div></div>` + nightInstHtml(p.night_inst, nd) + worldHtml(p.world) + news;
+}
+
+// ---- 夜盤三大法人（期交所盤後交易時段；只有交易口數，沒有未平倉） ----
+function nightInstHtml(ni, nd) {
+  const title = `夜盤三大法人（${md(nd)} 交易日）`;
+  if (!ni) return `<h2 class="sec">${title}</h2><div class="sc opt"><p class="mute">夜盤三大法人尚未公布，之後排程會自動補上。</p></div>`;
+  const M = isMob(), lot = v => `<td class="${cls(v)}">${sg(v)}</td>`, yi = v => `<td class="${cls(v)}">${sg(v, 2)}</td>`;
+  const fut = ni.fut.map(r => `<tr><td class="name">${r.name}</td><td>${num(r.long)}</td><td>${num(r.short)}</td>${lot(r.net)}${M ? "" : yi(r.net_amt)}</tr>`);
+  const opt = ni.opt.map(r => `<tr><td class="name">${r.name}</td>` + (M
+    ? lot(r.call_net) + yi(r.call_amt) + lot(r.put_net) + yi(r.put_amt)
+    : `<td>${num(r.call_b)}</td><td>${num(r.call_s)}</td>${lot(r.call_net)}${yi(r.call_amt)}<td>${num(r.put_b)}</td><td>${num(r.put_s)}</td>${lot(r.put_net)}${yi(r.put_amt)}`) + "</tr>");
+  const fi = ni.fut[0], fo = ni.opt[0];
+  const say = v => v > 0 ? `淨買 ${num(v)} 口` : v < 0 ? `淨賣 ${num(-v)} 口` : "買賣相當";
+  const lead = `<p class="mute">外資夜盤：台指期${say(fi.net)}；買權（Call）${say(fo.call_net)}、賣權（Put）${say(fo.put_net)}。</p>`;
+  return ftable(`${title}：臺股期貨`, M ? ["身份", "多方(口)", "空方(口)", "淨額(口)"] : ["身份", "多方(口)", "空方(口)", "多空淨額(口)", "淨額(億)"], fut,
+      lead + `<p class="fn">期交所盤後交易時段（夜盤）的三大法人交易口數，外資含陸資。夜盤只公布交易量，<b>沒有未平倉</b>：看得出夜盤誰在買賣，看不出留倉多少；未平倉要等日盤收盤後的資料。${M ? "手機版不顯示金額。" : ""}</p>`, "ngi") +
+    ftable(`${title}：臺指選擇權`, M ? ["身份", "Call淨(口)", "Call淨(億)", "Put淨(口)", "Put淨(億)"]
+      : ["身份", "Call買(口)", "Call賣(口)", "Call淨(口)", "Call淨(億)", "Put買(口)", "Put賣(口)", "Put淨(口)", "Put淨(億)"], opt,
+      `<p class="fn">淨額＝買方－賣方。口數與金額方向可能相反：例如買進的是權利金較貴（較價內或較遠月）的合約，賣出的是便宜的合約，口數淨賣、金額卻淨買。${M ? "手機版只顯示淨額。" : ""}</p>`, "ngo");
 }
 
 // ---- 國際市場（盤前速覽；Yahoo Finance／Nasdaq.com 非官方介面） ----

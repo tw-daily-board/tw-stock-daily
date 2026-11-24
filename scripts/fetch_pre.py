@@ -3,6 +3,8 @@
 資料來源（皆為官方公開資料）：
   - 夜盤       期交所 futDataDown（交易時段＝盤後）。期交所把「前一晚 15:00～隔天 05:00」的夜盤記在隔天的交易日，
                所以今天早上查「今天」的日期就是昨晚的夜盤；漲跌是相對前一個交易日的結算價
+  - 夜盤三大法人 期交所 futContractsDateAhDown（臺股期貨）、callsAndPutsDateAhDown（臺指選擇權）：盤後交易時段的
+               自營商、投信、外資交易口數與金額（夜盤只有交易量，沒有未平倉）；同樣記在隔天的交易日
   - 匯率       期交所 dailyFXRateDown（每日外幣參考匯率，最近一個交易日）
   - 今日事件   data/events.json（除權息）、data/daytrade.json（處置、暫停先賣後買）、data/latest.json（選擇權結算日）
   - 國際市場   fetch_world（Yahoo Finance／Nasdaq.com，非官方介面）：美歐亞指數、美股期貨、債息匯率原物料、台積電 ADR 與相關美股
@@ -10,6 +12,7 @@
 抓不到夜盤就丟 NotPublished，由排程決定要不要等；不用替代數字。輸出 data/pre.json。
 """
 import json
+import time
 from datetime import timedelta
 from pathlib import Path
 
@@ -39,6 +42,32 @@ def night(d):
                     "pct": round(chg / (close - chg) * 100, 2) if chg is not None and close - chg else None,
                     "volume": int(fetch_fut.fnum(r["成交量"]) or 0)})
     return out
+
+
+INST_ORDER = [("外資及陸資", "外資"), ("投信", "投信"), ("自營商", "自營商")]
+
+
+def night_inst(d):
+    """夜盤三大法人：臺股期貨多空交易口數、臺指選擇權買賣權交易口數（金額由千元換成億元）"""
+    amt = lambda v: round((fetch_fut.fnum(v) or 0) / 1e5, 2)  # noqa: E731
+    lots = lambda v: int(fetch_fut.fnum(v) or 0)  # noqa: E731
+    fr = fetch_fut.day_rows("futContractsDateAhDown", f"{fetch_fut.rng(d)}&commodityId=TXF", d, "臺股期貨夜盤三大法人")
+    fr = {r["身份別"]: r for r in fr if r.get("商品名稱") == "臺股期貨"}
+    time.sleep(3)
+    orows = fetch_fut.day_rows("callsAndPutsDateAhDown", f"{fetch_fut.rng(d)}&commodityId=TXO", d, "臺指選擇權夜盤三大法人")
+    orows = {(r["買賣權別"], r["身份別"]): r for r in orows if r.get("商品名稱") == "臺指選擇權"}
+    fut, opt = [], []
+    for key, label in INST_ORDER:
+        r = fr.get(key)
+        c, p = orows.get(("CALL", key)), orows.get(("PUT", key))
+        if not r or not c or not p:
+            raise RuntimeError(f"期交所 {d} 夜盤三大法人缺少「{key}」的{'期貨' if not r else '選擇權'}資料")
+        fut.append({"name": label, "long": lots(r["多方交易口數"]), "short": lots(r["空方交易口數"]),
+                    "net": lots(r["多空交易口數淨額"]), "net_amt": amt(r["多空交易契約金額淨額(千元)"])})
+        opt.append({"name": label, **{f"{k}_{f}": v for k, x in (("call", c), ("put", p)) for f, v in (
+            ("b", lots(x["買方交易口數"])), ("s", lots(x["賣方交易口數"])),
+            ("net", lots(x["交易口數買賣淨額"])), ("amt", amt(x["交易契約金額買賣淨額(千元)"])))}})
+    return {"fut": fut, "opt": opt}
 
 
 def fx(d):
@@ -99,7 +128,7 @@ def session_start(nd):
     return f"{days[-1][:4]}-{days[-1][4:6]}-{days[-1][6:]}" if days else None
 
 
-def build(d, now, warn, fallback=False):
+def build(d, now, warn, fallback=False, may_wait=lambda: False):
     """夜盤記在「下一個交易日」：今天早上查今天的日期＝昨晚的夜盤。
     fallback＝True（手動執行）：今天沒有時先往後找（休市日時最新一晚的夜盤記在下一個交易日），再往前找"""
     import fetch_world
@@ -118,13 +147,26 @@ def build(d, now, warn, fallback=False):
                 raise
     if nt is None:
         raise fetch_fut.NotPublished(f"期交所 {d} 前後都沒有夜盤資料")
+    # 夜盤三大法人：獨立處理，抓不到不影響夜盤行情與其他盤前資料（網頁顯示尚未公布）
+    try:
+        ni = night_inst(nd)
+    except fetch_fut.NotPublished as e:
+        if may_wait():   # 排程還可以等：整個盤前 5 分鐘後重試
+            raise
+        warn("夜盤三大法人尚未公布", e)
+        ni = None
+    except Exception as e:  # noqa: BLE001
+        msg = f"{type(e).__name__}: {e}"
+        print(f"夜盤三大法人失敗：{msg}")
+        print("::error title=夜盤三大法人未產生::" + msg[:500].replace("\n", " "))
+        ni = None
     fxs = fx(d)
     try:
         world = fetch_world.build(warn, tw_close("2330"), fxs[0]["values"][-1])
     except Exception as e:  # noqa: BLE001
         warn("國際市場未更新", e)
         world = None
-    return {"date": d.isoformat(), "night_date": nd.isoformat(), "night_from": session_start(nd), "updated_at": now, "night": nt, "fx": fxs,
+    return {"date": d.isoformat(), "night_date": nd.isoformat(), "night_from": session_start(nd), "updated_at": now, "night": nt, "night_inst": ni, "fx": fxs,
             "events": events(d), "world": world}
 
 
