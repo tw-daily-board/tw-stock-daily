@@ -96,5 +96,13 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           path: _site
+      # 部署偶爾在上傳後立刻查不到 github-pages 檔案（GitHub 端的時間差）：第一次失敗就等 30 秒再部署一次
       - uses: actions/deploy-pages@v5
+        id: deploy
         if: ${{ !cancelled() }}
+        continue-on-error: true
+      - name: 部署失敗，30 秒後重試
+        if: ${{ !cancelled() && steps.deploy.outcome == 'failure' }}
+        run: sleep 30
+      - uses: actions/deploy-pages@v5
+        if: ${{ !cancelled() && steps.deploy.outcome == 'failure' }}
