@@ -106,3 +106,12 @@ jobs:
         run: sleep 30
       - uses: actions/deploy-pages@v5
         if: ${{ !cancelled() && steps.deploy.outcome == 'failure' }}
+      # Telegram 推送：只在 cron-job.org 的盤前／期貨／融資排程推（手動執行與 22:17 保險排程不推）；
+      # 放在部署之後，資料比推送時間早好就在這一步等到 07:50／15:30。金鑰放在 GitHub Secrets，推送失敗不影響網站更新
+      - name: 推送 Telegram
+        if: ${{ !cancelled() && contains(fromJSON('["pre","fut","margin"]'), steps.job.outputs.require) }}
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scripts/notify.py "${{ steps.job.outputs.require }}"
