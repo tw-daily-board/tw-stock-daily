@@ -2,7 +2,7 @@ name: daily-update
 
 on:
   # 主要排程由外部定時服務 cron-job.org 準時觸發（GitHub 自己的排程常延遲 30 分鐘～2 小時，甚至略過）：
-  #   台灣時間週一~五 06:10 盤前（slot=pre）、15:15 期貨（fut）、17:00 股票（stock）、21:00 融資等晚間資料（margin）
+  #   台灣時間週一~五 07:15 盤前（slot=pre）、15:15 期貨（fut）、17:00 股票（stock）、21:00 融資等晚間資料（margin）
   #   用 workflow_dispatch API 帶 slot 參數；權杖只有這個 repo 的 Actions 讀寫權限，存放在 cron-job.org。
   # 這裡只留一個 GitHub 排程當保險：台灣時間週一~五 22:17（UTC 14:17）補跑一次完整更新，
   # 不檢查必要資料（即使延遲到半夜也不會誤報）；報錯交給 cron-job.org 的四次。

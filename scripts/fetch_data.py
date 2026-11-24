@@ -507,7 +507,7 @@ def update_sbl(out, deadline, loud):
 
 
 def run_pre(today, require):
-    """盤前（06:10，cron-job.org 觸發）：夜盤、匯率、今日事件與昨晚的重大訊息。夜盤還沒出就每 5 分鐘重試到 PRE_WAIT_MINUTES"""
+    """盤前（07:15，cron-job.org 觸發）：夜盤、匯率、今日事件與昨晚的重大訊息。夜盤還沒出就每 5 分鐘重試到 PRE_WAIT_MINUTES"""
     import fetch_fut
     import fetch_pre
     update_events()
@@ -634,13 +634,13 @@ def check_required(require, out, today):
 
 def main():
     DATA.mkdir(exist_ok=True)
-    # 這次負責的資料（workflow 依 slot 設定 REQUIRE）：pre＝06:10、fut＝15:15、stock＝17:00、margin＝21:00；一般手動執行與 22:17 保險排程不設
+    # 這次負責的資料（workflow 依 slot 設定 REQUIRE）：pre＝07:15、fut＝15:15、stock＝17:00、margin＝21:00；一般手動執行與 22:17 保險排程不設
     require = {x for x in os.environ.get("REQUIRE", "").split(",") if x}
     today = datetime.now(timezone(timedelta(hours=8))).date()
     if require and not is_trading_day(today):
         print(f"{today} 休市，不更新")
         return
-    # 盤前（06:10，cron-job.org 觸發）只更新 data/pre.json 與重大訊息，不重抓盤後資料
+    # 盤前（07:15，cron-job.org 觸發）只更新 data/pre.json 與重大訊息，不重抓盤後資料
     mode = os.environ.get("MODE", "")
     if mode == "auto":   # 手動執行預設：台灣時間 09:00 前跑盤前，其他時間跑盤後完整更新
         mode = "pre" if datetime.now(timezone(timedelta(hours=8))).hour < 9 else "full"
