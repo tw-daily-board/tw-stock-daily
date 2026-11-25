@@ -1,0 +1,28 @@
+name: telegram-test
+
+# 手動執行：確認 Telegram Bot 與聊天室設定。用網站目前的資料送一則加上「測試」標題的訊息，不抓資料、不改資料、不部署網站
+on:
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: "測試哪一則：pre＝盤前、fut＝期貨、margin＝融資融券"
+        type: choice
+        options: [pre, fut, margin]
+        default: pre
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 送出測試訊息
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scripts/notify.py "${{ inputs.slot }}" --test

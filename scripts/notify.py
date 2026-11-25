@@ -4,8 +4,9 @@
 金鑰放在 GitHub Secrets（TELEGRAM_BOT_TOKEN、TELEGRAM_CHAT_ID），由 workflow 以環境變數傳入，不寫進任何檔案。
 資料不是今天的就不推送（只印警告），避免把舊資料當成今天的發出去。
 
-用法：python scripts/notify.py pre|fut|margin [--dry-run]
+用法：python scripts/notify.py pre|fut|margin [--dry-run] [--test]
   --dry-run：只印出訊息、不送出，也不等到推送時間
+  --test：設定確認用（telegram-test.yml）：用現有資料、加上「測試」標題立刻送出，不檢查日期、不等時間
 """
 import html
 import json
@@ -208,23 +209,31 @@ def send(token, chat, text):
 
 
 def main():
-    slot, dry = sys.argv[1], "--dry-run" in sys.argv
+    slot, dry, test = sys.argv[1], "--dry-run" in sys.argv, "--test" in sys.argv
     now = datetime.now(TW)
     today = now.date().isoformat()
-    try:
-        text = BUILD[slot](today)
-    except Stale as e:
-        print(f"::warning title=Telegram 未推送（{slot}）::{e}")
-        return
+    if test:
+        data_date = {"pre": lambda: load("pre.json")["date"], "fut": lambda: load("latest.json")["fut"]["date"],
+                     "margin": lambda: load("margin.json")["date"]}[slot]()
+        text = "🧪 <b>測試訊息</b>（確認聊天室設定，內容為網站目前的資料）\n\n" + BUILD[slot](data_date)
+    else:
+        try:
+            text = BUILD[slot](today)
+        except Stale as e:
+            print(f"::warning title=Telegram 未推送（{slot}）::{e}")
+            return
     if dry:
         print(text)
         return
     token, chat = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
     if not token or not chat:
+        if test:   # 測試就是要確認設定：沒設定直接失敗
+            print("::error title=Telegram 未設定::GitHub Secrets 沒有 TELEGRAM_BOT_TOKEN 或 TELEGRAM_CHAT_ID")
+            sys.exit(1)
         print("::warning title=Telegram 未設定::沒有 TELEGRAM_BOT_TOKEN 或 TELEGRAM_CHAT_ID，略過推送")
         return
     h, mi = SEND_AT[slot]
-    wait = (now.replace(hour=h, minute=mi, second=0, microsecond=0) - now).total_seconds()
+    wait = 0 if test else (now.replace(hour=h, minute=mi, second=0, microsecond=0) - now).total_seconds()
     if wait > 0:
         print(f"等到 {h:02d}:{mi:02d} 再推送（{int(wait)} 秒）")
         time.sleep(wait)
