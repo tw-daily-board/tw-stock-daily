@@ -31,7 +31,7 @@
 - `scripts/fetch_data.py`：主程式；股票行情、三大法人、權值股、外資買賣超 → `data/latest.json`
 - `scripts/fetch_stock.py`：個股查詢用逐檔資料（近 60 日收盤、近 10 日法人，取自快取不另連線）→ `data/stock.json`
 - `scripts/fetch_screens.py`：籌碼篩選 → `data/screens.json`；還原股價計算（排除除權息與分割）
-- `scripts/notify.py`：Telegram 推送（07:50 盤前、15:30 期貨、21:00 融資融券；只讀已產生的資料檔，資料不是當天的就不推）。金鑰放 GitHub Secrets `TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`，不寫進任何檔案；推送失敗印 `::error::`，不影響資料更新與部署。`python scripts/notify.py pre --dry-run` 可在本機看訊息內容；Actions 的 telegram-test 可手動送一則測試訊息確認聊天室設定
+- `scripts/notify.py`：Telegram 推送（07:50 盤前、15:30 期貨、21:00 綜合訊號＋融資摘要；只讀已產生的資料檔，資料不是當天的就不推）。金鑰放 GitHub Secrets `TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`，不寫進任何檔案；推送失敗印 `::error::`，不影響資料更新與部署。`python scripts/notify.py pre --dry-run` 可在本機看訊息內容；Actions 的 telegram-test 可手動送一則測試訊息確認聊天室設定
 - `scripts/fetch_combo.py`：董監融資篩選 → `data/combo.json`（21:00 融資融券更新到今天後才算；失敗印 `::error::`，網頁顯示「尚未產生」）。融資維持率為**估算**：官方只公布融資張數，用批次模型推估融資成本（融資增加視為當天收盤價買進一批；減少時先扣已跌破 130% 的批次、再扣最早的批次；成數假設六成），狀態存 `data/combo/lots.json`，起始狀態為 2026-03-13 起每日實際融資餘額與收盤價推算；董監持股取證交所／櫃買 openapi 董監事逐人持股 ÷ 已發行普通股數，快取 `data/combo/directors.json`（7 天重抓）
 - `scripts/fetch_value.py`：月營收、本益比、營收估值篩選 → `data/value.json`
 - `scripts/fetch_longterm.py`：估值歷史與長期體質篩選 → `data/longterm.json`

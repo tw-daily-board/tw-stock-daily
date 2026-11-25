@@ -1,4 +1,4 @@
-"""Telegram 推送：盤前（07:50）、期貨（15:30）、融資融券（21:00 資料更新後）。
+"""Telegram 推送：盤前（07:50）、期貨（15:30）、綜合訊號＋融資摘要（21:00 資料更新後）。
 
 只讀網站已產生的資料檔（data/pre.json、data/latest.json、data/margin.json、data/chips、data/combo.json），不另外連線抓資料、不用 LLM。
 金鑰放在 GitHub Secrets（TELEGRAM_BOT_TOKEN、TELEGRAM_CHAT_ID），由 workflow 以環境變數傳入，不寫進任何檔案。
@@ -144,42 +144,72 @@ def msg_fut(today):
     return "\n".join(L)
 
 
-# ---------- 融資融券 ----------
+# ---------- 綜合訊號＋融資摘要（21:00） ----------
+LEAN = {1: "🔴偏多", -1: "🟢偏空", 0: "⚪中性"}   # 台股慣例：紅多綠空
+DOT = {1: "🔺", -1: "🔻", 0: "▫️"}
+
+
 def msg_margin(today):
-    m = load("margin.json")
-    if m["date"] != today:
-        raise Stale(f"融資融券資料是 {m['date']}，不是 {today}")
+    s = load("latest.json").get("signals") or {}
+    if s.get("date") != today:
+        raise Stale(f"綜合訊號資料是 {s.get('date')}，不是 {today}")
+    L = [f"🧭 <b>綜合訊號 {mdw(s['date'])}</b>", ""]
+    for key in ("short", "mid"):
+        t = s["terms"][key]
+        L.append(f"<b>【{t['name']}】{t['verdict']}</b>（偏多 {t['bull']}／偏空 {t['bear']}／中性 {t['neutral']} 個面向）")
+        L += [f"　{LEAN[d['lean']]} {esc(d['name'])}（多 {d['bull']}・空 {d['bear']}／{d['n']} 項）" for d in t["dims"]]
+        L.append("")
+    L.append("<b>【關鍵指標】</b>")
+    for key, title in (("short", "短線"), ("mid", "中期")):
+        rows = [i for i in s["items"] if i["term"] == key and (i["bias"] != 0 or not i["scored"])]
+        if not rows:
+            continue
+        L.append(f"‧{title}")
+        for i in rows:
+            extra = ""
+            if i["group"] in ("期貨", "選擇權") or i["name"] == "外資現貨":
+                d = i["detail"] if i["name"].startswith("最近結算") else i["detail"].split("；")[0]
+                extra = "｜" + esc(d.replace("（淨未平倉金額）", ""))
+            L.append(f"{DOT[i['bias']] if i['scored'] else 'ℹ️'} {esc(i['name'])}：{esc(i['value'])}{extra}")
+    L += ["", "<b>【融資摘要】</b>"] + margin_brief(today)
+    L += ["", "🔺偏多 🔻偏空 ℹ️參考（不計分）；固定規則計算，非投資建議",
+          f'<a href="{SITE}">看完整綜合訊號</a>　<a href="{SITE}#mgn">看融資融券</a>　<a href="{SITE}#scr">看籌碼篩選</a>']
+    return "\n".join(L)
+
+
+def margin_brief(today):
+    """融資重點 3～4 行；資料不是今天的就註明，不讓整則推送失敗。"""
+    out = []
     files = sorted((DATA / "chips").glob("*.json"))
     cur = json.loads(files[-1].read_text()) if files else None
     prev = json.loads(files[-2].read_text()) if len(files) > 1 else None
-    L = [f"💳 <b>融資融券 {mdw(m['date'])}</b>", ""]
     if cur and cur["date"] == today:
-        L.append("<b>【市場】</b>融資餘額（億，較前日）｜融券餘額（張，較前日）")
+        parts = []
         for k, label in (("twse", "上市"), ("tpex", "上櫃")):
             c, p = cur["margin"][k], (prev or {}).get("margin", {}).get(k)
-            da = c["fin_amt"] - p["fin_amt"] if p else None
-            ds = c["short_lots"] - p["short_lots"] if p else None
-            L.append(f"{label}　{num(c['fin_amt'], 2)}（{sg(da, 2)}）｜{num(c['short_lots'])}（{sg(ds)}）")
-    stocks = [r for r in m["rows"] if not r["etf"] and r.get("fin_d1") is not None]
-    def rank(key, rev, title):
-        xs = sorted((r for r in stocks if r.get(key) is not None and (r[key] > 0 if rev else r[key] < 0)),
-                    key=lambda r: r[key], reverse=rev)[:TOP]
-        out = ["", f"<b>【{title}】</b>（張）"]
-        out += [f"{esc(r['name'])} {r['code']}　{sg(r[key])}（收 {num(r['close'], 2)}，{sg(r['pct'], 2)}%）" for r in xs] or ["無"]
-        return out
-    L += rank("fin_d1", True, "融資增加最多")
-    L += rank("fin_d1", False, "融資減少最多")
-    L += rank("short_d1", True, "融券增加最多")
+            parts.append(f"{label} {num(c['fin_amt'], 2)} 億（{sg(c['fin_amt'] - p['fin_amt'] if p else None, 2)}）")
+        out.append("融資餘額：" + "、".join(parts))
+    try:
+        m = load("margin.json")
+    except (OSError, ValueError):
+        m = None
+    if m and m.get("date") == today:
+        stocks = [r for r in m["rows"] if not r["etf"] and r.get("fin_d1") is not None]
+        def top(rev):
+            xs = sorted((r for r in stocks if (r["fin_d1"] > 0 if rev else r["fin_d1"] < 0)),
+                        key=lambda r: r["fin_d1"], reverse=rev)[:3]
+            return "、".join(f"{esc(r['name'])} {sg(r['fin_d1'])}" for r in xs) or "無"
+        out.append(f"融資增加：{top(True)}（張）")
+        out.append(f"融資減少：{top(False)}（張）")
     try:
         c = load("combo.json")
     except (OSError, ValueError):
         c = None
     if c and c.get("rows") is not None and c.get("date") == today:
         hit = [r for r in c["rows"] if all(v is not None and v > 0 for v in r["mom"])]
-        names = "、".join(f"{esc(r['name'])}（維持率約 {num(r['mr'], 0)}%）" for r in hit[:10]) or "無"
-        L += ["", f"<b>【董監融資篩選】</b>營收月增版 {len(hit)} 檔：{names}", "⚠️ 融資維持率為估算值，非官方數字"]
-    L += ["", f'<a href="{SITE}#mgn">看完整融資融券</a>　<a href="{SITE}#scr">看籌碼篩選</a>']
-    return "\n".join(L)
+        names = "、".join(f"{esc(r['name'])}（約 {num(r['mr'], 0)}%）" for r in hit[:5]) or "無"
+        out.append(f"董監融資篩選 {len(hit)} 檔：{names}（維持率為估算）")
+    return out or ["今天的融資資料尚未產生"]
 
 
 class Stale(Exception):

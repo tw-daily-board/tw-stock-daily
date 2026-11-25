@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       slot:
-        description: "測試哪一則：pre＝盤前、fut＝期貨、margin＝融資融券"
+        description: "測試哪一則：pre＝盤前、fut＝期貨、margin＝綜合訊號＋融資摘要"
         type: choice
         options: [pre, fut, margin]
         default: pre
