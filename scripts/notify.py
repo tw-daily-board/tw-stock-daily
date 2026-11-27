@@ -146,7 +146,7 @@ def msg_fut(today):
 
 # ---------- 綜合訊號＋融資摘要（21:00） ----------
 LEAN = {1: "🔴偏多", -1: "🟢偏空", 0: "⚪中性"}   # 台股慣例：紅多綠空
-DOT = {1: "🔺", -1: "🔻", 0: "▫️"}
+DOT = {1: "🔴", -1: "🟢", 0: "⚪"}
 
 
 def msg_margin(today):
@@ -172,7 +172,7 @@ def msg_margin(today):
                 extra = "｜" + esc(d.replace("（淨未平倉金額）", ""))
             L.append(f"{DOT[i['bias']] if i['scored'] else 'ℹ️'} {esc(i['name'])}：{esc(i['value'])}{extra}")
     L += ["", "<b>【融資摘要】</b>"] + margin_brief(today)
-    L += ["", "🔺偏多 🔻偏空 ℹ️參考（不計分）；固定規則計算，非投資建議",
+    L += ["", "🔴偏多 🟢偏空 ⚪中性 ℹ️參考（不計分）；固定規則計算，非投資建議",
           f'<a href="{SITE}">看完整綜合訊號</a>　<a href="{SITE}#mgn">看融資融券</a>　<a href="{SITE}#scr">看籌碼篩選</a>']
     return "\n".join(L)
 
