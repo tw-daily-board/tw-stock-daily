@@ -519,6 +519,11 @@ table.sst th{font-size:12px}
 .otag{color:var(--call);border:1px solid currentColor}
 .gtag{border:1px dashed currentColor}
 .gtag.gs{color:#8a5cd6}.gtag.gb{color:#c58a00}.gtag.gn{color:var(--mute)}
+.gtag.gc{color:#1a8f8f}
+table.ft td span.gtag.gc{margin-left:4px}
+.cmb{margin:12px 0 4px;padding:12px 14px;border:1.5px dashed #1a8f8f;border-radius:10px}
+.cmb h3{margin:0 0 6px;font-size:15px}.cmb h3 .gtag{margin:0 4px 0 0}
+.cmb ul{margin:0 0 6px;padding-left:18px}.cmb li{margin:3px 0}.cmb li .gtag{margin:0 4px 0 0}
 table.ft td span.gtag{display:inline-block;margin:0}
 table.obt,table.obi,table.ngi,table.ngo{max-width:980px}
 .sr>div.infer{border:1.5px dashed #8a5cd6}

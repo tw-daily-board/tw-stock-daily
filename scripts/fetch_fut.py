@@ -37,6 +37,9 @@ CHART_MIN_OI = 800      # 分布圖只畫買權或賣權至少一邊未平倉達
 WEEKDAY = "一二三四五六日"
 BUILD_TOP = 5           # 建倉熱區：每邊列未平倉增加最多的幾個履約價
 BUILD_MIN = 200         # 未平倉至少增加這麼多口才列入
+COMBO_MIN = 500         # 組合單偵測：只看未平倉增加這麼多口以上的履約價（口數小時巧合太多）
+COMBO_TOL = 0.01        # 組合單偵測：增加口數差距在 1% 以內（至少容許 2 口）視為「幾乎一樣」
+COMBO_SPAN = 1000       # 組合單偵測：同一組的履約價最多相距幾點
 IV_TH = 1.0             # 隱含波動率變化（百分點）超過這個門檻才推測買方或賣方
 MIN_PREMIUM = 1.0       # 權利金低於 1 點時隱含波動率不可靠，不推測
 
@@ -489,6 +492,27 @@ def guess(div):
     return "偏賣方" if div <= -IV_TH else "偏買方" if div >= IV_TH else "不明"
 
 
+def combos(rows):
+    """可能的組合單（推測）：未平倉增加 COMBO_MIN 口以上、口數幾乎一樣、履約價相距不遠的兩個以上部位。
+    rows：[{"side", "strike", "d", ...}]（買權與賣權一起）；回傳 [[row, ...], ...]，依口數由大到小"""
+    items = sorted((r for r in rows if r["d"] >= COMBO_MIN), key=lambda r: r["d"])
+    out, used = [], set()
+    for i, a in enumerate(items):
+        if i in used:
+            continue
+        g = [i]
+        for j in range(i + 1, len(items)):
+            if items[j]["d"] - a["d"] > max(2, a["d"] * COMBO_TOL):
+                break
+            ks = [items[x]["strike"] for x in g] + [items[j]["strike"]]
+            if j not in used and max(ks) - min(ks) <= COMBO_SPAN:
+                g.append(j)
+        if len(g) >= 2:
+            used.update(g)
+            out.append(sorted((items[x] for x in g), key=lambda r: (r["side"], r["strike"])))
+    return sorted(out, key=lambda g: -g[0]["d"])
+
+
 def build_view(snap, prev, ref):
     if not prev or "inst_opt" not in prev:
         return None
@@ -530,17 +554,26 @@ def build_view(snap, prev, ref):
                 iv1 = implied_vol(p1, F1, K, T1, call) if F1 else None
                 iv0 = implied_vol(p0, F0, K, T0, call) if F0 else None
                 div = None if iv1 is None or iv0 is None else round((iv1 - iv0) * 100, 1) + 0.0  # 避免 -0.0
-                rows.append({"strike": K, "oi": oi, "d": dd, "vol": s["vol"][side].get(k, 0),
+                rows.append({"side": side, "strike": K, "oi": oi, "d": dd, "vol": s["vol"][side].get(k, 0),
                              "px": p1, "px_d": None if p1 is None or p0 is None else round(p1 - p0, 1),
                              "iv": None if iv1 is None else round(iv1 * 100, 1), "iv_d": div, "guess": guess(div)})
             rows.sort(key=lambda x: -x["d"])
-            sides[side] = rows[:BUILD_TOP]
+            sides[side] = rows
+        # 可能的組合單：在全部候選裡找（不只前 5 名），組合編號標在各履約價上
+        groups = combos(sides["c"] + sides["p"])
+        for n, g in enumerate(groups, 1):
+            for r in g:
+                r["combo"] = n
+        cmb = [{"id": n, "kind": "買權組合" if {r["side"] for r in g} == {"c"} else "賣權組合" if {r["side"] for r in g} == {"p"} else "買賣權組合",
+                "legs": [{"side": r["side"], "strike": r["strike"], "d": r["d"]} for r in g]} for n, g in enumerate(groups, 1)]
+        sides = {k: v[:BUILD_TOP] for k, v in sides.items()}
         # 推測賣方佈局區間：指數以下偏賣方建倉最多的賣權 ～ 指數以上偏賣方建倉最多的買權
         sp = next((x for x in sides["p"] if x["strike"] <= ref and x["guess"] == "偏賣方"), None)
         sc = next((x for x in sides["c"] if x["strike"] >= ref and x["guess"] == "偏賣方"), None)
         series.append({"code": code, "exp": e.isoformat(), "label": f"{e.month}/{e.day}（{WEEKDAY[e.weekday()]}）{kind}",
                        "fwd": F1, "days": round(T1 * 252), "atm_iv": None if atm1 is None else round(atm1 * 100, 1), "atm_d": atm_d, "call": sides["c"], "put": sides["p"],
-                       "range": {"put": sp, "call": sc},
+                       "range": {"put": sp, "call": sc}, "combos": cmb,
                        "call_d": sum(s["c"].values()) - sum(ps["c"].values()), "put_d": sum(s["p"].values()) - sum(ps["p"].values())})
     return {"date": snap["date"], "prev_date": prev["date"], "ref": ref, "inst": inst, "series": series,
-            "rule": {"min": BUILD_MIN, "top": BUILD_TOP, "iv_th": IV_TH, "min_premium": MIN_PREMIUM, "range": SR_RANGE}}
+            "rule": {"min": BUILD_MIN, "top": BUILD_TOP, "iv_th": IV_TH, "min_premium": MIN_PREMIUM, "range": SR_RANGE,
+                     "combo_min": COMBO_MIN, "combo_tol": COMBO_TOL, "combo_span": COMBO_SPAN}}

@@ -155,6 +155,7 @@ function renderOpt(o, pc, date) {
 let obSel = 0;
 const GUESS_CLS = { "偏賣方": "gs", "偏買方": "gb", "不明": "gn" };
 const guessTag = g => `<span class="gtag ${GUESS_CLS[g] || "gn"}">${g === "不明" ? "不明" : "推測" + g}</span>`;
+const cmbTag = x => x.combo ? `<span class="gtag gc">組合${x.combo}</span>` : "";
 function renderOB(b) {
   if (!b) return '<div class="empty">選擇權建倉分析尚未產生，之後排程會自動補上。</div>';
   const M = isMob(), r = b.rule;
@@ -176,27 +177,35 @@ function renderOB(b) {
     (rp && rc ? `<p class="big">${num(rp.strike)} ～ ${num(rc.strike)}</p>
       <p>指數下方：賣權 <b>${num(rp.strike)}</b> 未平倉 +${num(rp.d)} 口、隱含波動率 ${sg(rp.iv_d, 1)}；指數上方：買權 <b>${num(rc.strike)}</b> 未平倉 +${num(rc.d)} 口、隱含波動率 ${sg(rc.iv_d, 1)}。</p>
       <p class="mute">意思接近「Sell Put ${num(rp.strike)} ＋ Sell Call ${num(rc.strike)}」（賣勒式）：押指數到期時待在這個區間內。這是全市場加總後的推測，<b>不代表有人真的同時建了這組部位</b>。</p>`
-    : `<p class="big">無法推測</p><p class="mute">${rp ? `指數下方有偏賣方建倉（賣權 ${num(rp.strike)}），` : "指數下方的賣權沒有偏賣方的明顯建倉，"}${rc ? `指數上方有偏賣方建倉（買權 ${num(rc.strike)}）。` : "指數上方的買權沒有偏賣方的明顯建倉。"}兩邊都有才組成區間。</p>`) + "</div>";
+    : `<p class="big">無法推測</p><p class="mute">${rp ? `指數下方有偏賣方建倉（賣權 ${num(rp.strike)}），` : "指數下方的賣權沒有偏賣方的明顯建倉，"}${rc ? `指數上方有偏賣方建倉（買權 ${num(rc.strike)}）。` : "指數上方的買權沒有偏賣方的明顯建倉。"}兩邊都有才組成區間。</p>`) +
+    ([rp, rc].some(x => x && x.combo) ? `<p class="warn">這裡提到的 ${[rp, rc].filter(x => x && x.combo).map(x => `${num(x.strike)}（組合${x.combo}）`).join("、")}可能屬於組合單，不一定是單純的賣方，這個推測參考性較低。</p>` : "") + "</div>";
   const ctx = `<div><h3>此系列背景</h3><p>對應台指期 <b>${num(s.fwd, 0)}</b>・距到期 ${s.days} 個交易日</p>
     <p>價平隱含波動率 <b>${s.atm_iv == null ? "-" : num(s.atm_iv, 1) + "%"}</b>（${s.atm_d == null ? "-" : sg(s.atm_d, 1)}）</p>
     <p>未平倉 買權 <span class="${cls(s.call_d)}">${sg(s.call_d)}</span>・賣權 <span class="${cls(s.put_d)}">${sg(s.put_d)}</span> 口</p>
     ${s.atm_d != null && Math.abs(s.atm_d) >= 3 ? `<p class="warn">今天整體波動率${s.atm_d < 0 ? "大跌" : "大漲"}，多數價位都會被判成${s.atm_d < 0 ? "偏賣方" : "偏買方"}，推測參考性較低。</p>` : ""}
     ${s.days <= 2 ? '<p class="warn">距到期 2 個交易日內，隱含波動率變化很大，推測更不可靠。</p>' : ""}</div>`;
+  // 可能的組合單（推測）：未平倉增加口數幾乎一樣的相近履約價
+  const cmbs = s.combos || [];
+  const legTxt = l => `${l.side === "c" ? "買權" : "賣權"} ${num(l.strike)}（+${num(l.d)}）`;
+  const cmbHint = g => g.kind === "買賣權組合" ? "可能是跨式、勒式或合成部位" : g.legs.length === 2 ? "可能是垂直價差（一買一賣）" : "可能是梯形組合或多組相連的價差";
+  const cmbBox = cmbs.length ? `<div class="cmb"><h3><span class="gtag gs">推測</span> 可能的組合單</h3><ul>` +
+    cmbs.map(g => `<li><span class="gtag gc">組合${g.id}</span> ${g.legs.map(legTxt).join("、")}：${cmbHint(g)}</li>`).join("") +
+    `</ul><p class="mute">這幾個履約價的未平倉增加口數幾乎一樣（差距 1% 以內），很難用巧合解釋，比較像同一人一次下的組合單。組合單同時有買和賣，風險有上限，不一定會「守」某個價位，所以<b>不宜當成一層一層的賣方壓力或支撐</b>；兩腳的隱含波動率通常一起變動，上面的偏買方／偏賣方推測也不準。公開資料看不出是誰下的、哪一腳買哪一腳賣，也看不出方向。</p></div>` : "";
   const side = (rows, t, c) => {
     const head = M ? ["履約價", "OI 增加", "結算價", "IV 變化", "推測"] : ["履約價", "未平倉", "增加", "成交量", "結算價", "漲跌", "隱含波動率", "IV 變化", "推測"];
     const body = rows.length ? rows.map(x => M
-      ? `<tr><td class="name ${c}">${num(x.strike)}</td><td>+${num(x.d)}<span class="dv">${num(x.oi)}</span></td><td>${x.px == null ? "-" : num(x.px, 1)}<span class="dv ${cls(x.px_d)}">${x.px_d == null ? "" : sg(x.px_d, 1)}</span></td><td>${x.iv_d == null ? "-" : sg(x.iv_d, 1)}</td><td>${guessTag(x.guess)}</td></tr>`
-      : `<tr><td class="name ${c}">${num(x.strike)}</td><td>${num(x.oi)}</td><td>+${num(x.d)}</td><td>${num(x.vol)}</td><td>${x.px == null ? "-" : num(x.px, 1)}</td><td class="${cls(x.px_d)}">${x.px_d == null ? "-" : sg(x.px_d, 1)}</td><td>${x.iv == null ? "-" : num(x.iv, 1) + "%"}</td><td>${x.iv_d == null ? "-" : sg(x.iv_d, 1)}</td><td>${guessTag(x.guess)}</td></tr>`).join("")
+      ? `<tr><td class="name ${c}">${num(x.strike)}</td><td>+${num(x.d)}<span class="dv">${num(x.oi)}</span></td><td>${x.px == null ? "-" : num(x.px, 1)}<span class="dv ${cls(x.px_d)}">${x.px_d == null ? "" : sg(x.px_d, 1)}</span></td><td>${x.iv_d == null ? "-" : sg(x.iv_d, 1)}</td><td>${guessTag(x.guess)}${cmbTag(x)}</td></tr>`
+      : `<tr><td class="name ${c}">${num(x.strike)}</td><td>${num(x.oi)}</td><td>+${num(x.d)}</td><td>${num(x.vol)}</td><td>${x.px == null ? "-" : num(x.px, 1)}</td><td class="${cls(x.px_d)}">${x.px_d == null ? "-" : sg(x.px_d, 1)}</td><td>${x.iv == null ? "-" : num(x.iv, 1) + "%"}</td><td>${x.iv_d == null ? "-" : sg(x.iv_d, 1)}</td><td>${guessTag(x.guess)}${cmbTag(x)}</td></tr>`).join("")
       : `<tr><td colspan="${head.length}" class="mute">沒有未平倉增加 ${r.min} 口以上的履約價</td></tr>`;
     return `<h3 class="obh"><i class="${c}"></i>${t}</h3><table class="ft m5 obt"><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>`;
   };
   return `<h2 class="sec">選擇權建倉（臺指選擇權，${b.date}）</h2>` + instHtml +
     `<h2 class="sec">建倉熱區與推測<span class="gtag gs">含推測</span></h2><div class="sc opt">
     <nav class="optnav">${tabs}</nav>
-    <div class="sr">${rangeBox}${ctx}</div>
+    <div class="sr">${rangeBox}${ctx}</div>${cmbBox}
     ${side(s.call, `買權建倉前 ${r.top}（未平倉增加最多）`, "call")}
     ${side(s.put, `賣權建倉前 ${r.top}（未平倉增加最多）`, "put")}
-    <p class="fn"><b>官方數字</b>：未平倉、增加口數、成交量、結算價（期交所逐履約價行情）。<b>推測</b>：每一口未平倉同時有買方與賣方，公開資料看不出是誰新增的，也看不出不同履約價是不是同一人建的。這裡用「隱含波動率變化」推測：以台指期結算價為標的、利率 0、依交易日計算到期時間反推同一履約價的隱含波動率，未平倉增加且隱含波動率下降 ${r.iv_th} 個百分點以上推測偏賣方（權利金比理論便宜，賣方急著賣），上升 ${r.iv_th} 個百分點以上推測偏買方，其餘為不明；權利金低於 ${r.min_premium} 點時不推測。只列指數上下 ${Math.round(r.range * 100)}% 內、未平倉增加 ${r.min} 口以上的價位。指數大漲大跌、整體波動率變化、接近到期都會影響判斷，僅供參考，不構成投資建議。</p>
+    <p class="fn"><b>官方數字</b>：未平倉、增加口數、成交量、結算價（期交所逐履約價行情）。<b>推測</b>：每一口未平倉同時有買方與賣方，公開資料看不出是誰新增的，也看不出不同履約價是不是同一人建的。這裡用「隱含波動率變化」推測：以台指期結算價為標的、利率 0、依交易日計算到期時間反推同一履約價的隱含波動率，未平倉增加且隱含波動率下降 ${r.iv_th} 個百分點以上推測偏賣方（權利金比理論便宜，賣方急著賣），上升 ${r.iv_th} 個百分點以上推測偏買方，其餘為不明；權利金低於 ${r.min_premium} 點時不推測。只列指數上下 ${Math.round(r.range * 100)}% 內、未平倉增加 ${r.min} 口以上的價位。<b>組合單</b>（推測）：同一系列中未平倉增加 ${num(r.combo_min ?? 500)} 口以上、口數差距在 ${(r.combo_tol ?? 0.01) * 100}% 以內、履約價相距 ${num(r.combo_span ?? 1000)} 點以內的兩個以上價位（買權、賣權都算）。指數大漲大跌、整體波動率變化、接近到期都會影響判斷，僅供參考，不構成投資建議。</p>
   </div>`;
 }
 
